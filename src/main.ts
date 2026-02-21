@@ -84,6 +84,7 @@ notifyServer.onMessage.addListener(async (event) => {
 			console.log(`Received update event for\`${event.file}'...`);
 
 			const tabs = openTabs.get(event.file);
+			// TODO: do not reload a tab if it has been discarded
 			await Promise.all(tabs.map((tab) => browser.tabs.reload(tab)));
 
 			break;
