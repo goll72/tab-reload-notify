@@ -23,8 +23,11 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
 	// even if the commands sent to the inotify server end up erroring out,
 	// rolling back the changes when we receive an error response.
 	if (tab.url?.startsWith(fileUriPrefix)) {
-		// XXX: canonicalize; i.e. remove repeated slashes and trailing slash (if the browser doesn't do that already)
-		file = `/${tab.url.substring(fileUriPrefix.length)}`;
+		// NOTE: the browser already canonicalizes `..` and `.` but we still have
+		// to canonicalize repeated and trailing slashes
+		file = `/${tab.url.substring(fileUriPrefix.length)}`
+			.replaceAll(/\/+/, "/")
+			.replace(/\/$/, "");
 
 		if (!openTabs.has(file)) {
 			console.log(`Requesting to watch \`${file}'...`);
