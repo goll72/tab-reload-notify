@@ -26,6 +26,6 @@ build-extension:
     npx tsc
     npx web-ext build --overwrite-dest -s src -i '*.ts' 
 
-[working-directory: 'app']
+[working-directory: "app"]
 build-notify-server:
     cargo build --release --target {{target}}
