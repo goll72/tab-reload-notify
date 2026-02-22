@@ -1,4 +1,4 @@
-import { DEFAULT_OPTIONS, parseRegexList } from "./common";
+import { DEFAULT_OPTIONS, parseRegexList } from "./common.js";
 import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
