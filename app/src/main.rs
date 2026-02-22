@@ -11,9 +11,11 @@ use std::io::{Read, Write};
 
 use std::path::{Path, PathBuf};
 
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 
 use std::error::Error;
+use std::thread;
 use thiserror::Error;
 
 use notify::{Config, EventKindMask, RecommendedWatcher, RecursiveMode, Watcher};
@@ -74,8 +76,20 @@ fn de_json_len_prefixed_stdin<T: for<'a> Deserialize<'a>>() -> Result<T, JsonIoE
     Ok(serde_json::de::from_slice(&buf)?)
 }
 
+// Toggle whether update events are sent when files are removed. Update
+// events are always sent for removals inside watched directories.
+static RELOAD_REMOVED: AtomicBool = AtomicBool::new(false);
+
+enum WatchRequest {
+    Watch(PathBuf),
+    Unwatch(PathBuf),
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    // Maps a directory to children inside it that are actually being watched.
+    type DirectoryMap<'a> = Arc<Mutex<HashMap<PathBuf, BTreeSet<Cow<'a, Path>>>>>;
+
+    // Maps a directory which is actually being watched to children inside it
+    // which we have received requests to watch.
     //
     // We do this so that we can receive events when a file is removed and
     // then another file is renamed over it, or when registering watches
@@ -84,133 +98,274 @@ fn main() -> Result<(), Box<dyn Error>> {
     // The child doesn't have to be a direct child, that way there can be
     // multiple levels of "non-existence" that can be steadily filled in.
     //
-    // NOTE: "" is a valid entry, that is used to indicate that the directory
+    // NOTE: "" is a valid entry; it is used to indicate that the directory
     // itself is being watched.
-    let dir_watched_children: Arc<Mutex<HashMap<PathBuf, BTreeSet<Cow<'_, Path>>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let dir_watched_children: DirectoryMap<'_> = Arc::new(Mutex::new(HashMap::new()));
+
+    let (tx, rx) = mpsc::channel::<WatchRequest>();
 
     let mut watcher = {
+        let tx = tx.clone();
         let dir_watched_children = dir_watched_children.clone();
 
         RecommendedWatcher::new(
             move |event: notify::Result<notify::Event>| {
                 use notify::{Event, EventKind, event::*};
 
-                match event {
-                    Ok(Event {
-                        kind: EventKind::Create(kind),
-                        paths,
-                        ..
-                    }) => {
-                        let mut path = paths.into_iter().next().unwrap();
-                        let mut map = dir_watched_children.lock().unwrap();
+                fn handle_event(
+                    tx: mpsc::Sender<WatchRequest>,
+                    event: notify::Event,
+                    dir_watched_children: DirectoryMap<'_>,
+                    reload_removed: bool,
+                ) {
+                    match event {
+                        Event {
+                            kind: EventKind::Create(kind),
+                            paths,
+                            ..
+                        } => {
+                            let path = paths.into_iter().next().unwrap();
+                            let mut map = dir_watched_children.lock().unwrap();
 
-                        // NOTE: the cases below are not mutually exclusive!
+                            // NOTE: the cases below are not mutually exclusive!
 
-                        // We received an update event for a directory and it is being watched
-                        if let Some(children) = map.get(&path)
-                            && children.contains(Path::new(""))
-                        {
-                            let _ =
-                                ser_json_len_prefixed_stdout(&NotifyEvent::Update { file: &path });
+                            // We received an update event for a directory and it is being watched
+                            if let Some(children) = map.get(&path)
+                                && children.contains(Path::new(""))
+                            {
+                                let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                    file: &path,
+                                });
+                            }
+
+                            if let Some(parent) = path.parent()
+                                && let Some(children) = map.get_mut(parent)
+                            {
+                                let dot_in_children = children.contains(Path::new(""));
+
+                                if let Some(file) = path.file_name() {
+                                    let mut cursor =
+                                        children.lower_bound_mut(Bound::Included(Path::new(file)));
+                                    let child = cursor.next();
+
+                                    if child.is_some_and(|x| x == Path::new(file)) {
+                                        let _ =
+                                            ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                                file: &path,
+                                            });
+                                    }
+
+                                    // We received an update event for a child,
+                                    // but the directory is being watched
+                                    if dot_in_children {
+                                        let _ =
+                                            ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                                file: parent,
+                                            });
+                                    }
+
+                                    // The map manipulation to separate children only makes
+                                    // sense if the child that was created is a directory
+                                    if kind == CreateKind::Folder
+                                        || (kind == CreateKind::Any && path.is_dir())
+                                    {
+                                        let mut set = BTreeSet::new();
+
+                                        while let Some(child) = cursor.peek_next()
+                                            && child.starts_with(file)
+                                        {
+                                            let child = cursor.remove_next().unwrap();
+
+                                            set.insert(
+                                                child.strip_prefix(file).unwrap().to_owned().into(),
+                                            );
+                                        }
+
+                                        if let Some(existing) = map.get_mut(&path) {
+                                            existing.extend(set);
+                                        } else {
+                                            tx.send(WatchRequest::Watch(path.clone()));
+                                            map.insert(path, set);
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        Event {
+                            kind: EventKind::Remove(kind),
+                            paths,
+                            ..
+                        } => {
+                            let mut path = paths.into_iter().next().unwrap();
+                            let mut map = dir_watched_children.lock().unwrap();
 
-                        if let Some(parent) = path.parent()
-                            && let Some(children) = map.get_mut(parent)
-                        {
-                            let dot_in_children = children.contains(Path::new("").into());
+                            if let Some(parent) = path.parent()
+                                && let Some(children) = map.get_mut(parent)
+                            {
+                                // If the parent of the file/directory being removed is being watched,
+                                // we have to send an update event to it
+                                if children.contains(Path::new("")) {
+                                    let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                        file: parent,
+                                    });
+                                }
 
-                            // We received an update event for a child, which
-                            // is being watched or has children being watched
-                            if let Some(file) = path.file_name() {
-                                let mut cursor =
-                                    children.lower_bound_mut(Bound::Included(Path::new(file)));
-                                let child = cursor.next();
+                                // If the file being removed is being watched and the user chose to
+                                // receive update events for removed files, send an update event
+                                if reload_removed
+                                    && let Some(file) = path.file_name()
+                                    && children.contains(Path::new(&file))
+                                {
+                                    let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                        file: &path,
+                                    });
+                                }
+                            }
 
-                                if child.is_some_and(|x| x == Path::new(file)) {
+                            // If this directory has any watches and it is getting
+                            // removed, we have to start watching its parent and reparent
+                            // any children
+                            //
+                            // WARN: I don't think I need to unwatch here /shrug
+                            //
+                            // NOTE: modifies `path` so it should come in last
+                            if let Some(parent) = path.parent()
+                                && let Some(file) = path.file_name().map(|x| Path::new(x))
+                                && let Some(children) = map.remove(&path)
+                            {
+                                let set: BTreeSet<_> = children
+                                    .into_iter()
+                                    .map(|x| Cow::Owned(file.join(x.as_path())))
+                                    .collect();
+
+                                if let Some(existing) = map.get_mut(parent) {
+                                    existing.extend(set);
+                                } else {
+                                    path.pop();
+
+                                    tx.send(WatchRequest::Watch(path.clone()));
+                                    map.insert(path, set);
+                                }
+                            }
+                        }
+                        Event {
+                            kind: EventKind::Modify(ModifyKind::Data(..)),
+                            paths,
+                            ..
+                        } => {
+                            let path = paths.into_iter().next().unwrap();
+                            let map = dir_watched_children.lock().unwrap();
+
+                            if let Some(parent) = path.parent()
+                                && let Some(children) = map.get(parent)
+                                && let Some(file) = path.file_name()
+                            {
+                                if children.contains(Path::new(&file)) {
                                     let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
                                         file: &path,
                                     });
                                 }
 
-                                // The map manipulation to separate children only makes
-                                // sense if the child that was created is a directory
-                                if kind == CreateKind::Folder {
-                                    let mut set = BTreeSet::new();
+                                // if children.contains(Path::new("")) {
+                                //     let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                //         file: parent,
+                                //     });
+                                // }
+                            }
+                        }
+                        Event {
+                            kind: EventKind::Modify(ModifyKind::Metadata(..)),
+                            paths,
+                            ..
+                        } => {
+                            let path = paths.into_iter().next().unwrap();
+                            let map = dir_watched_children.lock().unwrap();
 
-                                    while let Some(child) = cursor.peek_next()
-                                        && child.starts_with(file)
-                                    {
-                                        let child = cursor.remove_next().unwrap();
+                            if let Some(parent) = path.parent()
+                                && let Some(children) = map.get(parent)
+                                && children.contains(Path::new(""))
+                            {
+                                let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
+                                    file: parent,
+                                });
+                            }
+                        }
+                        Event {
+                            kind: EventKind::Modify(ModifyKind::Name(kind)),
+                            paths,
+                            ..
+                        } => {
+                            match kind {
+                                RenameMode::From => handle_event(
+                                    tx,
+                                    Event {
+                                        kind: EventKind::Remove(RemoveKind::Any),
+                                        paths,
+                                        attrs: EventAttributes::new(),
+                                    },
+                                    dir_watched_children,
+                                    reload_removed,
+                                ),
+                                RenameMode::To => handle_event(
+                                    tx,
+                                    Event {
+                                        kind: EventKind::Create(CreateKind::Any),
+                                        paths,
+                                        attrs: EventAttributes::new(),
+                                    },
+                                    dir_watched_children,
+                                    reload_removed,
+                                ),
+                                // Naive way to deal with it
+                                RenameMode::Both => {
+                                    let mut iter = paths.into_iter();
 
-                                        set.insert(
-                                            child.strip_prefix(file).unwrap().to_owned().into(),
-                                        );
-                                    }
+                                    let from = iter.next().unwrap();
+                                    let to = iter.next().unwrap();
 
-                                    if let Some(existing) = map.get_mut(&path) {
-                                        existing.extend(set);
-                                    } else {
-                                        map.insert(path.clone(), set);
-                                    }
+                                    handle_event(
+                                        tx.clone(),
+                                        Event {
+                                            kind: EventKind::Remove(RemoveKind::Any),
+                                            paths: vec![from],
+                                            attrs: EventAttributes::new(),
+                                        },
+                                        dir_watched_children.clone(),
+                                        reload_removed,
+                                    );
+
+                                    handle_event(
+                                        tx,
+                                        Event {
+                                            kind: EventKind::Create(CreateKind::Any),
+                                            paths: vec![to],
+                                            attrs: EventAttributes::new(),
+                                        },
+                                        dir_watched_children,
+                                        reload_removed,
+                                    );
                                 }
-                            }
-
-                            // We received an update event for a child,
-                            // but the directory is being watched
-                            //
-                            // NOTE: this has to come in last, since it modifies `path`
-                            if dot_in_children {
-                                path.pop();
-
-                                let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
-                                    file: &path,
-                                });
+                                _ => (),
                             }
                         }
+                        Event {
+                            kind:
+                                EventKind::Access(..)
+                                | EventKind::Any
+                                | EventKind::Other
+                                | EventKind::Modify(ModifyKind::Any | ModifyKind::Other),
+                            ..
+                        } => (),
                     }
-                    Ok(Event {
-                        kind: EventKind::Remove(..),
-                        paths,
-                        ..
-                    }) => {
-                        let mut path = paths.into_iter().next().unwrap();
-                        let mut map = dir_watched_children.lock().unwrap();
+                }
 
-                        if let Some(parent) = path.parent()
-                            && let Some(children) = map.get_mut(parent)
-                        {
-                            let dot_in_children = children.contains(Path::new("").into());
-
-                            // NOTE: this has to come in last, since it modifies `path`
-                            if dot_in_children {
-                                path.pop();
-
-                                let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Update {
-                                    file: &path,
-                                });
-                            }
-                        }
-                    }
-                    Ok(Event {
-                        kind: EventKind::Modify(ModifyKind::Data(..)),
-                        paths,
-                        ..
-                    }) => {
-                        let mut path = paths.into_iter().next().unwrap();
-                        let mut map = dir_watched_children.lock().unwrap();
-                    }
-                    Ok(Event {
-                        kind: EventKind::Modify(ModifyKind::Metadata(..)),
-                        paths,
-                        ..
-                    }) => {}
-                    Ok(Event {
-                        kind: EventKind::Modify(ModifyKind::Name(..)),
-                        paths,
-                        ..
-                    }) => {}
-                    _ => (),
+                if let Ok(event) = event {
+                    handle_event(
+                        tx.clone(),
+                        event,
+                        dir_watched_children.clone(),
+                        RELOAD_REMOVED.load(Ordering::Relaxed),
+                    );
                 }
             },
             Config::default().with_event_kinds(
@@ -222,6 +377,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             ),
         )?
     };
+
+    thread::spawn(move || {
+        while let Ok(request) = rx.recv() {
+            match request {
+                WatchRequest::Watch(path) => {
+                    watcher.watch(&path, RecursiveMode::NonRecursive);
+                }
+                WatchRequest::Unwatch(path) => {
+                    watcher.watch(&path, RecursiveMode::NonRecursive);
+                }
+            }
+        }
+    });
 
     loop {
         match de_json_len_prefixed_stdin()? {
@@ -235,7 +403,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 // Path exists and is a directory
                 if file.is_dir() {
-                    let _ = watcher.watch(&file, RecursiveMode::NonRecursive);
+                    tx.send(WatchRequest::Watch(file.clone()));
 
                     dir_watched_children
                         .lock()
@@ -258,7 +426,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     let rest = file.strip_prefix(base)?.to_owned();
 
-                    let _ = watcher.watch(&base, RecursiveMode::NonRecursive);
+                    tx.send(WatchRequest::Watch(base.into()));
 
                     dir_watched_children
                         .lock()
@@ -271,10 +439,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             NotifyMessage::Remove { file } => {
                 let mut map = dir_watched_children.lock().unwrap();
 
-                if let Some(children) = map.get(&file)
+                if let Some(children) = map.get_mut(&file)
                     && children.contains(Path::new("").into())
                 {
-                    let _ = watcher.unwatch(&file);
+                    children.remove(Path::new("").into());
+
+                    if children.is_empty() {
+                        map.remove(&file);
+                        tx.send(WatchRequest::Unwatch(file));
+                    }
                 } else if let Some(parent) = file.parent() {
                     for ancestor in parent.ancestors() {
                         let Some(children) = map.get_mut(ancestor) else {
@@ -288,7 +461,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         children.remove(suffix);
 
                         if children.is_empty() {
-                            let _ = watcher.unwatch(ancestor);
+                            tx.send(WatchRequest::Unwatch(ancestor.into()));
                             map.remove(ancestor);
 
                             break;
@@ -296,7 +469,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
-            NotifyMessage::Reconfigure { reload_removed } => todo!(),
+            NotifyMessage::Reconfigure { reload_removed } => {
+                if let Some(value) = reload_removed {
+                    RELOAD_REMOVED.swap(value, Ordering::Relaxed);
+                }
+            }
         }
     }
 }
