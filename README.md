@@ -13,7 +13,7 @@ crate `notify` is used, thus supporting the following backends:
 
 ## Building
 
-To build the extension, you will need `npm`, `just`, `jq` and a Rust toolchain.
+To build the extension, you will need `npm`, `just`, `jq` and a nightly Rust toolchain.
 After having installed the dependencies, run:
 
 ```sh
