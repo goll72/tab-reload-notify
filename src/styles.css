@@ -1,0 +1,158 @@
+:root {
+  color-scheme: light dark;
+
+  /* Taken from chrome://global/skin/design-system/tokens-shared.css */
+  --color-white: #ffffff;
+  --color-gray-80: #23222b;
+
+  --bg: light-dark(var(--color-white), var(--color-gray-80));
+  --error-bg: light-dark(#cb4545, #dc5555);
+
+  --text: CanvasText;
+  --border: color-mix(in srgb, CanvasText 15%, transparent);
+  --hover-bg: color-mix(in srgb, AccentColor 12%, transparent);
+  --button-bg: AccentColor;
+  --button-text: AccentColorText;
+}
+
+/* Page layout */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body {
+  padding: 16px 24px 32px 24px;
+}
+
+form {
+  max-width: 720px;
+}
+
+p {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+label {
+  margin-left: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: AccentColor;
+  cursor: pointer;
+}
+
+form>div {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+textarea {
+  font: monospace;
+
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+
+  background: Field;
+  color: FieldText;
+
+  resize: vertical;
+
+  min-height: 120px;
+}
+
+textarea:focus {
+  outline: 2px solid AccentColor;
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+button {
+  appearance: none;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+
+  font-weight: 600;
+
+  background: var(--button-bg);
+  color: var(--button-text);
+
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.05);
+}
+
+button:active {
+  transform: translateY(1px);
+  filter: brightness(0.95);
+}
+
+button:focus-visible {
+  outline: 2px solid AccentColor;
+  outline-offset: 2px;
+}
+
+/* Make textarea section stack vertically */
+#regex-list-container {
+  flex-direction: column;
+  align-items: stretch;
+
+  padding: 0;
+  margin-top: 10px;
+}
+
+#regex-errors {
+  > :is(h1, h2, h3, h4) {
+    margin-top: 4px;
+  }
+
+  >div {
+    font-family: monospace;
+    margin-bottom: 8px;
+  }
+
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+
+  margin-top: 24px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+
+  background: var(--error-bg);
+  color: var(--color-white);
+
+  font-weight: 500;
+}
+
+#regex-errors:not(:has(div)) {
+  display: none;
+  margin: 0;
+  padding: 0;
+}

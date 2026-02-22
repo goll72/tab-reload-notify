@@ -5,38 +5,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="color-scheme" value="dark light">
+
+  <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
   <form>
-    <label for="reload-removed">Reload tabs when a file is removed</label>
-    <input type="checkbox" name="reload-removed" id="reload-removed">
+    <h3>General Settings</h3>
+
+    <label>
+      <input type="checkbox" name="reload-removed">
+      Reload tabs when a file is removed
+    </label>
 
     <hr>
+
+    <h3>Regex List</h3>
 
     <p>Use regex list as:</p>
 
     <div>
-      <input type="radio" name="list-type" id="radio-list-block" value="block">
-      <label for="radio-list-block">Blocklist</label>
+      <label>
+        <input type="radio" name="list-type" value="block" checked>
+        Blocklist
+      </label>
     </div>
 
     <div>
-      <input type="radio" name="list-type" id="radio-list-allow" value="allow">
-      <label for="radio-list-block">Allowlist</label>
+      <label>
+        <input type="radio" name="list-type" value="allow">
+        Allowlist
+      </label>
     </div>
 
-    <div>
-      <p>List of regexes that should match the path component:</p>
+    <div id="regex-list-container">
+      <p>List of regexes that should match:</p>
 
-      <textarea cols="35" rows="8" id="regex-list" name="regex-list">
-        Insert one regex per line...
-      </textarea>
+      <textarea rows="8" id="regex-list" name="regex-list" autocomplete="off" spellcheck="false"
+        placeholder="Insert one regex per line... (no need to match on the file:// prefix)&#10;Add comments by prefixing each line with '#'"></textarea>
     </div>
+
+    <div id="regex-errors"></div>
 
     <hr>
 
-    <button type="submit">Save</button>
+    <button type="submit" id="save">Save</button>
   </form>
 
   <script type="module" src="options.js"></script>
