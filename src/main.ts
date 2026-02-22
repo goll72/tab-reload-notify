@@ -1,4 +1,4 @@
-import { DEFAULT_OPTIONS, parseRegexList } from "./common.js";
+import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
 import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
@@ -11,7 +11,7 @@ const notifyServer = browser.runtime.connectNative(
 ) as NotifyServerPort;
 
 let options: Options = DEFAULT_OPTIONS;
-let regex: RegExp | undefined;
+let regex: RegExp = RegExp("", REGEX_FLAGS);
 
 browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
     if (!changeInfo.url) {
@@ -35,11 +35,11 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
             .replace(/\/$/, "");
 
         if (!openTabs.has(file)) {
-            if (options.regexList.type === "block" && regex?.test(file)) {
+            if (options.regexList.type === "block" && regex.test(file)) {
                 return;
             }
 
-            if (options.regexList.type === "allow" && !regex?.test(file)) {
+            if (options.regexList.type === "allow" && !regex.test(file)) {
                 return;
             }
 
@@ -146,11 +146,7 @@ function loadOptions() {
 
     const regexList = parseRegexList(options.regexList.content);
 
-    if (regexList.length === 0) {
-        regex = undefined;
-    } else {
-        regex = RegExp(regexList.join("|"));
-    }
+    regex = RegExp(regexList.join("|"), REGEX_FLAGS);
 }
 
 browser.storage.onChanged.addListener(loadOptions);
