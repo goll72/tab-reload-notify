@@ -1,15 +1,15 @@
 {
-  "name": "tab-reload-notify",
-  "version": "1.0",
-  "description": "Automatically reload tabs using the file URI scheme using file watch primitives",
-  "type": "module",
-  "license": "MIT",
-  "devDependencies": {
-    "@biomejs/biome": "2.4.3",
-    "typescript": "^5.9.3",
-    "web-ext": "^9.3.0"
-  },
-  "dependencies": {
-    "@types/firefox-webext-browser": "^143.0.0"
-  }
+    "name": "tab-reload-notify",
+    "version": "1.0",
+    "description": "Automatically reload tabs using the file URI scheme using file watch primitives",
+    "type": "module",
+    "license": "MIT",
+    "devDependencies": {
+        "@biomejs/biome": "2.4.3",
+        "typescript": "^5.9.3",
+        "web-ext": "^9.3.0"
+    },
+    "dependencies": {
+        "@types/firefox-webext-browser": "^143.0.0"
+    }
 }

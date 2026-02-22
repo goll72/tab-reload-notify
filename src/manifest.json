@@ -1,35 +1,35 @@
 {
-  "description": "Automatically reload tabs using the file URI scheme with file watch primitives",
-  "manifest_version": 2,
-  "name": "tab-reload-notify",
-  "version": "1.0",
+    "description": "Automatically reload tabs using the file URI scheme with file watch primitives",
+    "manifest_version": 2,
+    "name": "tab-reload-notify",
+    "version": "1.0",
 
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "tab_reload_notify@goll.cc",
-      "data_collection_permissions": {
-        "required": ["none"]
-      }
-    } 
-  },
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "tab_reload_notify@goll.cc",
+            "data_collection_permissions": {
+                "required": ["none"]
+            }
+        }
+    },
 
-  "options_ui": {
-    "page": "options.html",
-    "browser_style": false,
-    "open_in_tab": false
-  },
+    "options_ui": {
+        "page": "options.html",
+        "browser_style": false,
+        "open_in_tab": false
+    },
 
-  "icons": {
-    "32": "icon.svg",
-    "64": "icon.svg"
-  },
+    "icons": {
+        "32": "icon.svg",
+        "64": "icon.svg"
+    },
 
-  "background": {
-    "scripts": ["main.js"],
-    "type": "module",
-    "persistent": true,
-    "preferred_environment": ["service_worker"]
-  },
+    "background": {
+        "scripts": ["main.js"],
+        "type": "module",
+        "persistent": true,
+        "preferred_environment": ["service_worker"]
+    },
 
-  "permissions": ["nativeMessaging", "tabs", "storage"]
+    "permissions": ["nativeMessaging", "tabs", "storage"]
 }
