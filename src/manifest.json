@@ -1,5 +1,5 @@
 {
-    "description": "Automatically reload tabs using the file URI scheme with file watch primitives",
+    "description": "Automatically reload tabs with the file URI scheme using file watch primitives",
     "manifest_version": 2,
     "name": "tab-reload-notify",
     "version": "1.0",

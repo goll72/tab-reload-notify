@@ -1,7 +1,7 @@
 {
     "name": "tab-reload-notify",
     "version": "1.0",
-    "description": "Automatically reload tabs using the file URI scheme using file watch primitives",
+    "description": "Automatically reload tabs with the file URI scheme using file watch primitives",
     "type": "module",
     "license": "MIT",
     "devDependencies": {
