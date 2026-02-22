@@ -14,6 +14,7 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
 		return;
 	}
 
+	// XXX: handle `jar:file://!` URLs (they can have trailing slashes [before the !] too)
 	const fileUriPrefix = "file:///";
 	const previous = previousOpenFile.get(id);
 
@@ -81,11 +82,22 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
 notifyServer.onMessage.addListener(async (event) => {
 	switch (event.type) {
 		case "update": {
-			console.log(`Received update event for\`${event.file}'...`);
+			console.log(`Received update event for \`${event.file}'...`);
 
 			const tabs = openTabs.get(event.file);
-			// TODO: do not reload a tab if it has been discarded
-			await Promise.all(tabs.map((tab) => browser.tabs.reload(tab)));
+
+			await Promise.all(
+				tabs.map((tab) =>
+					browser.tabs.get(tab).then((info) => {
+						// Discarded tabs will be reloaded when they're activated
+						if (info.discarded) {
+							return Promise.resolve();
+						} else {
+							return browser.tabs.reload(tab);
+						}
+					}),
+				),
+			);
 
 			break;
 		}
@@ -105,3 +117,6 @@ notifyServer.onMessage.addListener(async (event) => {
 		}
 	}
 });
+
+// XXX
+browser.storage.onChanged.addListener((changes, areaName) => {});

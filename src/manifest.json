@@ -13,6 +13,17 @@
     } 
   },
 
+  "options_ui": {
+    "page": "options.html",
+    "browser_style": false,
+    "open_in_tab": false
+  },
+
+  "icons": {
+    "32": "icon.svg",
+    "64": "icon.svg"
+  },
+
   "background": {
     "scripts": ["main.js"],
     "type": "module",
@@ -20,5 +31,5 @@
     "preferred_environment": ["service_worker"]
   },
 
-  "permissions": ["nativeMessaging", "tabs"]
+  "permissions": ["nativeMessaging", "tabs", "storage"]
 }
