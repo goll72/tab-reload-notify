@@ -1,4 +1,5 @@
-import type { NotifyServerPort } from "./types";
+import { DEFAULT_OPTIONS, parseRegexList } from "./common";
+import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
 const previousOpenFile: Map<number, string> = new Map();
@@ -9,6 +10,9 @@ const notifyServer = browser.runtime.connectNative(
     "tab_reload_notify_server",
 ) as NotifyServerPort;
 
+let options: Options = DEFAULT_OPTIONS;
+let regex: RegExp | undefined;
+
 browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
     if (!changeInfo.url) {
         return;
@@ -18,7 +22,7 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
     const fileUriPrefix = "file:///";
     const previous = previousOpenFile.get(id);
 
-    let file: string;
+    let file: string | undefined;
 
     // To make the code simpler, we will add the relevant entries in the maps
     // even if the commands sent to the inotify server end up erroring out,
@@ -31,6 +35,14 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
             .replace(/\/$/, "");
 
         if (!openTabs.has(file)) {
+            if (options.regexList.type === "block" && regex?.test(file)) {
+                return;
+            }
+
+            if (options.regexList.type === "allow" && !regex?.test(file)) {
+                return;
+            }
+
             console.log(`Requesting to watch \`${file}'...`);
 
             notifyServer.postMessage({
@@ -40,7 +52,7 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
 
             openTabs.set(file, [id]);
         } else {
-            openTabs.get(file).push(id);
+            openTabs.get(file)?.push(id);
         }
 
         previousOpenFile.set(id, file);
@@ -54,9 +66,9 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
         //
         // At this point, the list should also include this tab, so we have to remove it
         const tabs = openTabs.get(previous);
-        const tabIndex = tabs.indexOf(id);
+        const tabIndex = tabs?.indexOf(id);
 
-        if (tabIndex === -1) {
+        if (tabIndex === undefined || tabIndex === -1) {
             throw new Error();
         }
 
@@ -74,7 +86,7 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
                 file: previous,
             });
         } else {
-            tabs.splice(tabIndex, 1);
+            tabs?.splice(tabIndex, 1);
         }
     }
 });
@@ -84,7 +96,7 @@ notifyServer.onMessage.addListener(async event => {
         case "update": {
             console.log(`Received update event for \`${event.file}'...`);
 
-            const tabs = openTabs.get(event.file);
+            const tabs = openTabs.get(event.file) ?? [];
 
             await Promise.all(
                 tabs.map(tab =>
@@ -104,7 +116,7 @@ notifyServer.onMessage.addListener(async event => {
         case "error": {
             console.error(`Couldn't watch \`${event.file}'!`);
 
-            const tabs = openTabs.get(event.file);
+            const tabs = openTabs.get(event.file) ?? [];
 
             // Roll back changes, since the file couldn't be watched
             for (const tab of tabs) {
@@ -118,5 +130,29 @@ notifyServer.onMessage.addListener(async event => {
     }
 });
 
-// XXX
-browser.storage.onChanged.addListener((changes, areaName) => {});
+function loadOptions() {
+    const prevReloadRemoved = options.reloadRemoved;
+
+    browser.storage.local.get(DEFAULT_OPTIONS).then(x => {
+        options = x as Options;
+    });
+
+    if (prevReloadRemoved !== options.reloadRemoved) {
+        notifyServer.postMessage({
+            command: "reconfigure",
+            reloadRemoved: options.reloadRemoved,
+        });
+    }
+
+    const regexList = parseRegexList(options.regexList.content);
+
+    if (regexList.length === 0) {
+        regex = undefined;
+    } else {
+        regex = RegExp(regexList.join("|"));
+    }
+}
+
+browser.storage.onChanged.addListener(loadOptions);
+
+loadOptions();

@@ -1,19 +1,11 @@
-import { parseRegexList, REGEX_FLAGS } from "./common.js";
+import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
 import type { Options, OptionsFormElement } from "./types";
 
 const form = document.querySelector("form") as OptionsFormElement;
 const regexErrors = document.querySelector("#regex-errors");
 
 function loadOptions() {
-    const defaults = {
-        reloadRemoved: false,
-        regexList: {
-            type: "block",
-            content: "",
-        },
-    } satisfies Options;
-
-    browser.storage.local.get(defaults).then((options: Options) => {
+    browser.storage.local.get(DEFAULT_OPTIONS).then((options: Options) => {
         form.elements["reload-removed"].checked = options.reloadRemoved;
         form.elements["list-type"].value = options.regexList.type;
         form.elements["regex-list"].value = options.regexList.content;
@@ -28,7 +20,7 @@ if (document.readyState === "loading") {
 
 form.addEventListener("submit", async event => {
     event.preventDefault();
-    regexErrors.replaceChildren();
+    regexErrors?.replaceChildren();
 
     let regexListType = form.elements["list-type"].value;
     const regexListContent = form.elements["regex-list"].value;
@@ -45,7 +37,7 @@ form.addEventListener("submit", async event => {
         try {
             RegExp(regex, REGEX_FLAGS);
         } catch (error) {
-            if (regexErrors.children.length === 0) {
+            if (regexErrors?.children.length === 0) {
                 const heading = document.createElement("h3");
                 heading.innerText = "Invalid regex(es). Errors found:";
 
@@ -55,11 +47,11 @@ form.addEventListener("submit", async event => {
             const element = document.createElement("div");
             element.innerText = `Line ${index + 1}: ${error}`;
 
-            regexErrors.appendChild(element);
+            regexErrors?.appendChild(element);
         }
     }
 
-    if (regexErrors.children.length > 0) {
+    if ((regexErrors?.children ?? []).length > 0) {
         return;
     }
 

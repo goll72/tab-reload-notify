@@ -1,3 +1,5 @@
+import type { Options } from "./types";
+
 export const REGEX_FLAGS: string = await (async () => {
     if ((await browser.runtime.getPlatformInfo()).os === "win") {
         return "i";
@@ -5,6 +7,14 @@ export const REGEX_FLAGS: string = await (async () => {
         return "";
     }
 })();
+
+export const DEFAULT_OPTIONS: Options = {
+    reloadRemoved: false,
+    regexList: {
+        type: "block",
+        content: "",
+    },
+};
 
 export function parseRegexList(
     regexList: string,
