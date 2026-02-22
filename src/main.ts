@@ -27,7 +27,7 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
         // NOTE: the browser already canonicalizes `..` and `.` but we still have
         // to canonicalize repeated and trailing slashes
         file = `/${tab.url.substring(fileUriPrefix.length)}`
-            .replaceAll(/\/+/, "/")
+            .replaceAll(/\/+/g, "/")
             .replace(/\/$/, "");
 
         if (!openTabs.has(file)) {
