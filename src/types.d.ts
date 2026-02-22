@@ -1,7 +1,12 @@
-export type NotifyServerMessage = {
-	command: "add" | "remove";
-	file: string;
-};
+export type NotifyServerMessage =
+	| {
+			command: "add" | "remove";
+			file: string;
+	  }
+	| {
+			command: "reconfigure";
+			reloadRemoved?: boolean;
+	  };
 
 export type NotifyServerEvent = {
 	type: "update" | "error";
