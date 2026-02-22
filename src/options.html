@@ -8,32 +8,36 @@
 </head>
 
 <body>
-  <label for="reload-removed">Reload tabs when a file is removed</label>
-  <input type="checkbox" name="reload-removed" id="reload-removed">
+  <form>
+    <label for="reload-removed">Reload tabs when a file is removed</label>
+    <input type="checkbox" name="reload-removed" id="reload-removed">
 
-  <hr>
+    <hr>
 
-  <p>Use regex list as:</p>
+    <p>Use regex list as:</p>
 
-  <div>
-    <input type="radio" name="list-type" id="radio-list-block" value="block">
-    <label for="radio-list-block">Blocklist</label>
-  </div>
+    <div>
+      <input type="radio" name="list-type" id="radio-list-block" value="block">
+      <label for="radio-list-block">Blocklist</label>
+    </div>
 
-  <div>
-    <input type="radio" name="list-type" id="radio-list-allow" value="allow">
-    <label for="radio-list-block">Allowlist</label>
-  </div>
+    <div>
+      <input type="radio" name="list-type" id="radio-list-allow" value="allow">
+      <label for="radio-list-block">Allowlist</label>
+    </div>
 
-  <div>
-    <p>List of regexes that should match the path component:</p>
+    <div>
+      <p>List of regexes that should match the path component:</p>
 
-    <textarea cols="35" rows="8" id="regex-list" name="regex-list">
-      Insert one regex per line...
-    </textarea>
-  </div>
+      <textarea cols="35" rows="8" id="regex-list" name="regex-list">
+        Insert one regex per line...
+      </textarea>
+    </div>
 
-  <hr>
+    <hr>
+
+    <button type="submit">Save</button>
+  </form>
 
   <script type="module" src="options.js"></script>
 </body>
