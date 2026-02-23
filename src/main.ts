@@ -1,4 +1,4 @@
-import { DEFAULT_OPTIONS, parseRegexList } from "./common.js";
+import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
 import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
@@ -149,7 +149,7 @@ function loadOptions() {
     if (regexList.length === 0) {
         regex = undefined;
     } else {
-        regex = RegExp(regexList.join("|"));
+        regex = RegExp(regexList.join("|"), REGEX_FLAGS);
     }
 }
 
