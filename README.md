@@ -17,6 +17,7 @@ To build the extension, you will need `npm`, `just`, `jq` and a nightly Rust too
 After having installed the dependencies, run:
 
 ```sh
+npm i --package-lock-only
 just build install run
 ```
 

@@ -1,7 +1,7 @@
 {
     "name": "tab_reload_notify_server",
     "description": "file watch server for the tab-reload-notify extension",
-    "path": "%EXT_APP_INSTALL_PATH%/notify-server",
+    "path": "%SERVER_INSTALL_BASE_DIR%notify-server",
     "type": "stdio",
     "allowed_extensions": ["tab_reload_notify@goll.cc"]
 }

@@ -1,12 +1,7 @@
-version := `jq --raw-output '.version' < src/manifest.json`
-
-extension_zip := "web-ext-artifacts/tab-reload-notify-" + version + ".zip"
-server_manifest := "tab_reload_notify_server.json"
-
-target := `rustc -vV | sed -n 's/host: //p'`
+target := env("TARGET", `rustc -vV | sed -n 's/host: //p'`)
 
 [parallel]
-build: build-extension build-notify-server
+build: build-extension build-server
 
 lint:
     npx web-ext lint -s src -i '*.ts'
@@ -15,17 +10,15 @@ run *args:
     npx web-ext run -s src {{args}}
 
 [unix]
-install: (install-notify-server (home_dir() + "/.mozilla/native-messaging-hosts") "notify-server")
-
-install-notify-server path bin:
-    sed "s:%EXT_APP_INSTALL_PATH%:{{path}}:" app/{{server_manifest}}.in > app/{{server_manifest}}
-    install -D -m755 app/target/{{target}}/release/app {{path}}/{{bin}}
-    install -D -m644 app/{{server_manifest}} {{path}}/{{server_manifest}}
+install prefix=(home_dir() + "/.local") native-manifest-path=(home_dir() + "/.mozilla/native-messaging-hosts"):
+    sed "s:%SERVER_INSTALL_BASE_DIR%:{{prefix}}/libexec/tab-reload-notify/:" native/native-manifest.json.in > native/native-manifest.json
+    install -D -m755 native/notify-server/target/{{target}}/release/notify-server {{prefix}}/libexec/tab-reload-notify/notify-server
+    install -D -m644 native/native-manifest.json {{native-manifest-path}}/tab_reload_notify_server.json
 
 build-extension:
     npx tsc
     npx web-ext build --overwrite-dest -s src -i '*.ts' 
 
-[working-directory: "app"]
-build-notify-server:
+[working-directory: "native/notify-server"]
+build-server:
     cargo build --release --target {{target}}
