@@ -1,6 +1,5 @@
 #![feature(btree_cursors)]
 #![feature(path_is_empty)]
-#![feature(path_trailing_sep)]
 
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
@@ -235,7 +234,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             {
                                 let set: BTreeSet<_> = children
                                     .into_iter()
-                                    .map(|x| Cow::Owned(file.join(x.as_path())))
+                                    .map(|x| Cow::Owned(file.join(x)))
                                     .collect();
 
                                 if let Some(existing) = map.get_mut(parent) {
