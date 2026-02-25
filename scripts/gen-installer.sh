@@ -6,7 +6,7 @@
 # mentioned using `rustup`, as well as `zig`, `cargo-zigbuild`,
 # `cargo-xwin` and a macOS Xcode SDK.
 
-: ${MACOS_SDKROOT:=/opt/xcode/sdk}
+: "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
 set -e
 
@@ -19,7 +19,7 @@ gen_installer() {
     shift 2
     
     cd "$REPO_ROOT/native/notify-server" > /dev/null
-    cargo "$@" --release --target $TARGET
+    cargo "$@" --release --target "$TARGET"
     cd - > /dev/null
 
 BANNER=$(cat <<EOF
@@ -127,15 +127,15 @@ ZIG_XCODE_TARGETS="x86_64-apple-darwin aarch64-apple-darwin"
 XWIN_TARGETS="x86_64-pc-windows-msvc aarch64-pc-windows-msvc"
 
 for target in $ZIG_TARGETS; do
-    gen_installer $target -- zigbuild
+    gen_installer "$target" -- zigbuild
 done
 
-export SDKROOT=$MACOS_SDKROOT
+export SDKROOT="$MACOS_SDKROOT"
 for target in $ZIG_XCODE_TARGETS; do
-    gen_installer $target -- zigbuild
+    gen_installer "$target" -- zigbuild
 done
 unset SDKROOT
 
 for target in $XWIN_TARGETS; do
-    gen_installer $target -- xwin build
+    gen_installer "$target" -- xwin build
 done
