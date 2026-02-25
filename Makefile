@@ -6,6 +6,7 @@ SRC := src/main.ts src/common.ts src/options.ts
 JS := $(SRC:%.ts=%.js)
 
 EXTENSION_ZIP := web-ext-artifacts/tab-reload-notify-$(VERSION).zip 
+SERVER_BINARY := native/notify-server/target/release/notify-server
 
 NATIVE_MANIFEST_PATH ?= $${HOME}/.mozilla/native-messaging-hosts/tab_reload_notify_server.json
 SERVER_BINARY_PATH ?= $${XDG_BIN_HOME:-$${HOME}/.local/bin}/tab-reload-notify/notify-server
@@ -16,7 +17,7 @@ lint:
 	npx web-ext lint -s src -i '*.ts'
 
 run:
-	npx web-ext run -s src
+	npx web-ext run -s src $(ARGS)
 
 install: $(SERVER_BINARY)
 	sed "s:%SERVER_BINARY_PATH%:$(SERVER_BINARY_PATH):" native/native-manifest.json.in > native/native-manifest.json
@@ -30,7 +31,10 @@ node_modules:
 $(JS): $(SRC) src/types.d.ts tsconfig.json node_modules
 	npx tsc
 
-$(EXTENSION_ZIP): $(JS) src/manifest.json
+src/browser-polyfill.js: node_modules
+	cp node_modules/webextension-polyfill/dist/browser-polyfill.js $@
+
+$(EXTENSION_ZIP): $(JS) src/browser-polyfill.js src/manifest.json
 	npx web-ext build --overwrite-dest -s src -i '*.ts' 
 
 $(SERVER_BINARY): native/notify-server/src/main.rs

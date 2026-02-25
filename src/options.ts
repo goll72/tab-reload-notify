@@ -1,3 +1,5 @@
+import "./browser-polyfill.js";
+
 import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
 import type { Options, OptionsFormElement } from "./types";
 
