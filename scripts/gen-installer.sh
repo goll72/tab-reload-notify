@@ -1,9 +1,10 @@
 #!/bin/sh
 # Generates installer scripts for the extension's native component.
 #
-# To run this script, you will need to install all of the targets
-# mentioned using `rustup`, as well as `zig`, `cargo-zigbuild`,
-# `cargo-xwin` and a macOS Xcode SDK.
+# To run this script, you will need to install all of the targets listed in
+# `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,`cargo-xwin`,
+# a macOS Xcode SDK, `gzip` and `uuencode` (if it isn't already provided, it
+# may be obtained from GNU sharutils).
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -51,7 +52,7 @@ while [ \$# -ne 0 ]; do
         ;;
         *)
             cat <<EOF >&2
-\$(basename "\$0") [ -h | --help | --user | --system ]
+Usage: \$(basename "\$0") [ -h | --help | --user | --system ]
 
 $BANNER
 
@@ -135,6 +136,16 @@ EOF
         ;;
     esac
 }
+
+if [ -n "$1" ]; then
+    cat <<EOF >&2
+Usage: $(basename "$0")
+
+Generates installer scripts for the extension's native component.
+EOF
+
+    exit 1
+fi
 
 for target in $ZIG_TARGETS; do
     gen_installer "$target" -- zigbuild
