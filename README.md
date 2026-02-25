@@ -24,7 +24,7 @@ That command will build the extension and the file watch server, then install
 the server binary and native messaging manifest to your local, per-user Firefox
 directory and run a new Firefox debugging session with the extension enabled.
 
-## Development
+## Development and Testing
 
-For development, you will also need to install the dependencies outlined in
-`scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`.
+For development and testing, you will also need to install the dependencies
+outlined in `scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`.

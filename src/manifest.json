@@ -1,6 +1,6 @@
 {
     "description": "Automatically reload tabs with the file URI scheme using file watch primitives",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "name": "tab-reload-notify",
     "version": "1.0",
 
@@ -26,8 +26,8 @@
 
     "background": {
         "scripts": ["main.js"],
+        "service_worker": "main.js",
         "type": "module",
-        "persistent": true,
         "preferred_environment": ["service_worker"]
     },
 
