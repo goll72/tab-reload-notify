@@ -17,7 +17,7 @@ mkdir -p "$OUT_DIR"
 . "$REPO_ROOT/scripts/common.sh"
 
 gen_installer_win() {
-    cat <<XEOF > "$OUT_DIR/install-$TARGET.bat"
+    cat <<XEOF > "$OUT_DIR/install-$TARGET.ps1"
 XEOF
 }
 
