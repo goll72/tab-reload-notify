@@ -110,7 +110,6 @@ install -D -m755 "\$TMPDIR/notify-server" "\$SERVER_BINARY_PATH"
 exit
 
 # DO NOT EDIT ANYTHING BELOW THIS LINE!
-# shellcheck disable=SC2317
 $(cat "$BINARY" | gzip -9 | uuencode -m -)
 XEOF
         ;;
