@@ -1,5 +1,4 @@
 #!/bin/sh
-#
 # Generates installer scripts for the extension's native component.
 #
 # To run this script, you will need to install all of the targets
@@ -13,39 +12,17 @@ set -e
 REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$REPO_ROOT/scripts/output/installers"
 
-gen_installer() {
-    TARGET=$1
+mkdir -p "$OUT_DIR"
 
-    shift 2
-    
-    cd "$REPO_ROOT/native/notify-server" > /dev/null
-    cargo "$@" --release --target "$TARGET"
-    cd - > /dev/null
+. "$REPO_ROOT/scripts/common.sh"
 
-BANNER=$(cat <<EOF
-Install script for notify-server, the native component
-of the tab-reload-notify Firefox browser extension.
-
-Built for: $TARGET
-EOF
-)
-     
-    case $TARGET in
-        *-windows-*)
-            cat <<XEOF > "$OUT_DIR/install-$TARGET.bat"
+gen_installer_win() {
+    cat <<XEOF > "$OUT_DIR/install-$TARGET.bat"
 XEOF
-        ;;
-        *-apple-*)
-            BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
+}
 
-            cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
-#!/bin/sh
-XEOF
-        ;;
-        *)
-            BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
-            
-            cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
+gen_installer_nix() {
+    cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
 #!/bin/sh
 $(echo "$BANNER" | sed "s/^/# /")
 
@@ -58,8 +35,8 @@ fi
 while [ \$# -ne 0 ]; do
     case "\$1" in
         --user)
-            NATIVE_MANIFEST_PATH="\$HOME/.mozilla/native-messaging-hosts/tab_reload_notify_server.json"
-            SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server"
+            NATIVE_MANIFEST_PATH="$USER_NATIVE_MANIFEST_PATH"
+            SERVER_BINARY_PATH="$USER_SERVER_BINARY_PATH"
         ;;
         --system)
             UID=\$(id -u)
@@ -69,8 +46,8 @@ while [ \$# -ne 0 ]; do
                 exit 1
             fi
 
-            NATIVE_MANIFEST_PATH="/usr/lib/mozilla/native-messaging-hosts/tab_reload_notify_server.json"
-            SERVER_BINARY_PATH="/usr/libexec/tab-reload-notify/notify-server"
+            NATIVE_MANIFEST_PATH="$SYSTEM_NATIVE_MANIFEST_PATH"
+            SERVER_BINARY_PATH="$SYSTEM_SERVER_BINARY_PATH"
         ;;
         *)
             cat <<EOF >&2
@@ -112,19 +89,52 @@ exit
 # DO NOT EDIT ANYTHING BELOW THIS LINE!
 $(cat "$BINARY" | gzip -9 | uuencode -m -)
 XEOF
+}
+
+gen_installer() {
+    TARGET=$1
+
+    shift 2
+    
+    cd "$REPO_ROOT/native/notify-server" > /dev/null
+    cargo "$@" --release --target "$TARGET"
+    cd - > /dev/null
+
+BANNER=$(cat <<EOF
+Install script for notify-server, the native component
+of the tab-reload-notify Firefox browser extension.
+
+Built for: $TARGET
+EOF
+)
+     
+    case $TARGET in
+        *-windows-*)
+            BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server.exe"
+
+            gen_installer_win
+        ;;
+        *-apple-*)
+            # XXX: I have no idea if this works (probably not)
+            BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
+            
+            USER_NATIVE_MANIFEST_PATH="\$HOME/Library/Application Support/Mozilla/NativeMessagingHosts/tab_reload_notify_server.json" \
+            USER_SERVER_BINARY_PATH="\$HOME/Library/Application Support/tab-reload-notify/notify-server" \
+            SYSTEM_NATIVE_MANIFEST_PATH="/Library/Application Support/Mozilla/NativeMessagingHosts/tab_reload_notify_server.json" \
+            SYSTEM_SERVER_BINARY_PATH="/Library/Application Support/tab-reload-notify/notify-server" \
+                gen_installer_nix
+        ;;
+        *)
+            BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
+            
+            USER_NATIVE_MANIFEST_PATH="\$HOME/.mozilla/native-messaging-hosts/tab_reload_notify_server.json" \
+            USER_SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server" \
+            SYSTEM_NATIVE_MANIFEST_PATH="/usr/lib/mozilla/native-messaging-hosts/tab_reload_notify_server.json" \
+            SYSTEM_SERVER_BINARY_PATH="/usr/libexec/tab-reload-notify/notify-server" \
+                gen_installer_nix
         ;;
     esac
 }
-
-ZIG_TARGETS="
-    x86_64-unknown-linux-gnu x86_64-unknown-linux-musl
-    aarch64-unknown-linux-gnu aarch64-unknown-linux-musl
-    x86_64-unknown-freebsd
-"
-
-ZIG_XCODE_TARGETS="x86_64-apple-darwin aarch64-apple-darwin"
-
-XWIN_TARGETS="x86_64-pc-windows-msvc aarch64-pc-windows-msvc"
 
 for target in $ZIG_TARGETS; do
     gen_installer "$target" -- zigbuild
