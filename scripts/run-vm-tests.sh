@@ -2,12 +2,15 @@
 # Downloads VM images and runs virtual machines with additional
 # setup so they can be used as testbeds for the extension.
 # 
-# Dependencies: `quickget`, `quickemu`
+# Dependencies: `quickget`, `quickemu`, `sshpass`, `samba`
 
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$REPO_ROOT/scripts/output/vms"
+RES_DIR="$REPO_ROOT/scripts/resources"
+
+SHARED_DIR="$REPO_ROOT/scripts/output/shared"
 
 mkdir -p "$OUT_DIR"
 
@@ -59,12 +62,21 @@ EOF
             cp --reflink=always "$i" "$i.bak"
         done
 
-        touch "$OUT_DIR/saved.flag"
+        # Save additional information stored as files in the filesystem
+        {
+            [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/macos-sequoia/first-time-setup.over"
+            
+            [ -f "$OUT_DIR/windows-10/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/windows-10/first-time-setup.over"
+        } > "$OUT_DIR/saved.flag"
     ;;
     --restore)
         for i in "$OUT_DIR"/*/disk.qcow2.bak; do
             cp "$i" "${i%.bak}"
         done
+
+        . "$OUT_DIR/saved.flag"
     ;;
     --run)
         # NOTE: on Linux and FreeBSD, a serial interface is set up and used to run
@@ -77,19 +89,21 @@ EOF
         # side-effectful, but all other commands should strive to be as idempotent as possible.
         case "$2" in
             $ARCH-unknown-linux-musl)
-                quickemu --vm alpine-v3.23.conf --serial telnet --display none
+                quickemu --vm alpine-v3.23.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
                 telnet localhost 6660 <<EOF
+apk add nodejs npm firefox cifs-utils
 EOF
             ;;
             $ARCH-unknown-freebsd)
-                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none
+                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
                 telnet localhost 6660 <<EOF
+pkg add node25 npm-node25 firefox
 EOF
             ;;
             $ARCH-apple-darwin)
-                quickemu --vm macos-sequoia.conf --serial telnet
+                quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
 
                 if ! [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ]; then
                     cat <<EOF
@@ -130,12 +144,20 @@ cat <<EOF > /Library/LaunchDaemons/getty.tty.serial1.plist
     <key>KeepAlive</key>
     <true/>
 </plist>
+EOF
 XEOF
                 fi
-                
+
+                telnet localhost 6660 <<EOF
+mkdir -p /tmp/tab-reload-notify
+mount -t smbfs smb://10.0.2.4/qemu /tmp/tab-reload-notify
+EOF
             ;;
             $ARCH-pc-windows-msvc)
-                quickemu --vm windows-10.conf
+                SSH="sshpass -p Quickemu ssh -o WarnWeakCrypto=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -p 22220"
+                POWERSHELL="C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe"
+
+                quickemu --vm windows-10.conf --public-dir "$SHARED_DIR"
 
                 if ! [ -f "$OUT_DIR/windows-10/first-time-setup.over" ]; then
                     cat <<EOF
@@ -143,13 +165,11 @@ XEOF
 
 Open a PowerShell window as Administrator and run the following commands:
 
-```
+\`\`\`
 Get-WindowsCapability -Online -Name OpenSSH.Server* | Add-WindowsCapability -Online
-Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
-New-ItemProperty -Path HKLM:\\SOFTWARE\\OpenSSH -Name DefaultShell -Value C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe -PropertyType String -Force
 net user Quickemu *
-```
+\`\`\`
 
 Once in the password prompt, use \`Quickemu' as the password.
 After doing that, press Enter/Return in the following prompt.
@@ -158,9 +178,15 @@ EOF
 
                     printf "...> "
                     read
+
+                    $SSH quickemu@localhost "$POWERSHELL" <<EOF
+Set-Service -Name sshd -StartupType Automatic 
+EOF
                 fi
-                
-                ssh -o WarnWeakCrypto=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -p 22220 Quickemu@localhost <<EOF
+
+                $SSH quickemu@localhost "$POWERSHELL" <<EOF
+winget install -e --id OpenJS.NodeJS
+winget install -e --id Mozilla.Firefox
 EOF
             ;;
             "")
