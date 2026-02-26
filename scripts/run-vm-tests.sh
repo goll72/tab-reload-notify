@@ -26,29 +26,51 @@ esac
 
 cd "$OUT_DIR"
 
+# TODO: add image checkpoint/restore functionality
 case "$1" in
     --download)
         [ -f alpine-v3.23.conf ] || quickget alpine v3.23
-        [ -f macos-tahoe.conf ] || quickget macos tahoe
         [ -f freebsd-15.0-disc1.conf ] || quickget freebsd 15.0 disc1
+        [ -f macos-sequoia.conf ] || quickget macos sequoia
         [ -f windows-10.conf ] || quickget windows 10
+
+        cat <<EOF
+The following VM images have been installed to \`$OUT_DIR':
+
+    alpine-v3.23.conf         ->   $ARCH-unknown-linux-musl
+    freebsd-15.0-disc1.conf   ->   $ARCH-unknown-freebsd
+    macos-sequoia.conf        ->   $ARCH-apple-darwin
+    windows-10.conf           ->   $ARCH-pc-windows-msvc
+
+You will need to run each one of them individually using \`quickemu --vm\`, go
+through the installation process and then comment out the \`iso=\` line in the
+respective \`.conf' file before running \`$(basename "$0") --run\`.
+EOF
+        
     ;;
     --run)
         case "$2" in
             $ARCH-unknown-linux-musl)
-                quickemu --vm alpine-v3.23.conf --serial telnet --display none --viewer none
+                quickemu --vm alpine-v3.23.conf --serial telnet --display none
             ;;
-            $ARCH-unknwon-freebsd)
-                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --viewer none
+            $ARCH-unknown-freebsd)
+                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none
             ;;
             $ARCH-apple-darwin)
-                quickemu --vm macos-tahoe.conf --serial telnet
+                quickemu --vm macos-sequoia.conf --serial telnet
+                # NOTE: `sudo /usr/libexec/getty - tty.serial1`
             ;;
             $ARCH-pc-windows-msvc)
                 quickemu --vm windows-10.conf --serial telnet
+                # NOTE: `ssh -p 22220 user@localhost`
+            ;;
+            "")
+                echo "You need to specify a target to run." >&2
+                exit 1
             ;;
             *)
                 echo "Unsupported target: $2" >&2
+                exit 1
             ;;
         esac 
     ;;
