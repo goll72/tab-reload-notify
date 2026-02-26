@@ -1,6 +1,6 @@
 #!/bin/sh
-# Downloads VM images and runs virtual machines with additional set up
-# so they can be used as testbeds for the extension.
+# Downloads VM images and runs virtual machines with additional
+# setup so they can be used as testbeds for the extension.
 # 
 # Dependencies: `quickget`, `quickemu`
 
@@ -26,7 +26,6 @@ esac
 
 cd "$OUT_DIR"
 
-# TODO: add image checkpoint/restore functionality
 case "$1" in
     --download)
         [ -f alpine-v3.23.conf ] || quickget alpine v3.23
@@ -42,11 +41,19 @@ The following VM images have been installed to \`$OUT_DIR':
     macos-sequoia.conf        ->   $ARCH-apple-darwin
     windows-10.conf           ->   $ARCH-pc-windows-msvc
 
-You will need to run each one of them individually using \`quickemu --vm\`, go
-through the installation process and then comment out the \`iso=\` line in the
-respective \`.conf' file before running \`$(basename "$0") --run\`.
+You will need to run each one of them individually using \`quickemu --vm', go
+through the installation process and then comment out the \`iso=' line in the
+respective \`.conf' file before running \`$(basename "$0") --run'.
+
+You should also run \`$(basename "$0") --save' so you
+can restore the VM images in case something goes wrong.
 EOF
-        
+    ;;
+    --save)
+        # TODO: ...
+    ;;
+    --restore)
+        # TODO: ...
     ;;
     --run)
         case "$2" in
@@ -87,12 +94,18 @@ so they can be used as testbeds for the extension.
     --download
         Download the VM images
 
+    --save
+        Save the VM images in their current state
+
+    --restore
+        Restore the VM images to their last saved state
+
     --run <TARGET>
-        Run a virtual machine appropriate for testing TARGET.
+        Run a virtual machine appropriate for testing TARGET
 
         Supported targets:
             $ARCH-unknown-linux-musl
-            $ARCH-unknwon-freebsd
+            $ARCH-unknown-freebsd
             $ARCH-apple-darwin
             $ARCH-pc-windows-msvc
 EOF
