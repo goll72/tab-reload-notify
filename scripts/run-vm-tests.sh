@@ -50,10 +50,21 @@ can restore the VM images in case something goes wrong.
 EOF
     ;;
     --save)
-        # TODO: ...
+        if [ -f "$OUT_DIR/saved.flag" ]; then
+            echo "\`$(basename "$0") --save' has been run already! Delete \`$OUT_DIR/saved.flag' if you want to overwrite the images that have been saved." >&2
+            exit 1
+        fi
+
+        for i in "$OUT_DIR"/*/disk.qcow2; do
+            cp --reflink=always "$i" "$i.bak"
+        done
+
+        touch "$OUT_DIR/saved.flag"
     ;;
     --restore)
-        # TODO: ...
+        for i in "$OUT_DIR"/*/disk.qcow2.bak; do
+            cp "$i" "${i%.bak}"
+        done
     ;;
     --run)
         case "$2" in

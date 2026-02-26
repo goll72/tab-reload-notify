@@ -3,8 +3,7 @@
 #
 # To run this script, you will need to install all of the targets listed in
 # `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,`cargo-xwin`,
-# a macOS Xcode SDK, `gzip` and `uuencode` (if it isn't already provided, it
-# may be obtained from GNU sharutils).
+# a macOS Xcode SDK, `gzip` and `base64`.
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -22,7 +21,6 @@ gen_installer_win() {
 XEOF
 }
 
-# TODO: switch uuencode/uudecode for base64 + fold
 gen_installer_nix() {
     cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
 #!/bin/sh
@@ -77,7 +75,7 @@ TMPDIR=\$(mktemp -d)
 
 trap 'rm -f "\$TMPDIR/notify-server" "\$TMPDIR/native-manifest.json"; rmdir "\$TMPDIR"' EXIT
 
-tail -n +\$(sed -n "/^begin-base64/{ n; =; }" "\$0") "\$0" | uudecode | gzip -d > "\$TMPDIR/notify-server"
+tail -n +\$(sed -n "/^BEGIN_BASE64_ENCODED_DATA/{ n; =; }" "\$0") "\$0" | base64 -d | gzip -d > "\$TMPDIR/notify-server"
 
 cat <<EOF > "\$TMPDIR/native-manifest.json"
 $(cat "$REPO_ROOT/native/native-manifest.json.in" | sed "s:%SERVER_BINARY_PATH%:\$SERVER_BINARY_PATH:")
@@ -89,7 +87,8 @@ install -D -m755 "\$TMPDIR/notify-server" "\$SERVER_BINARY_PATH"
 exit
 
 # DO NOT EDIT ANYTHING BELOW THIS LINE!
-$(cat "$BINARY" | gzip -9 | uuencode -m -)
+BEGIN_BASE64_ENCODED_DATA
+$(cat "$BINARY" | gzip -9 | base64 | fold -s -b -w 80)
 XEOF
 }
 
