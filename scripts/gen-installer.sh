@@ -22,6 +22,7 @@ gen_installer_win() {
 XEOF
 }
 
+# TODO: switch uuencode/uudecode for base64 + fold
 gen_installer_nix() {
     cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
 #!/bin/sh
