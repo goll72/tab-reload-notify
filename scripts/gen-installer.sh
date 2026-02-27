@@ -10,11 +10,11 @@
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-OUT_DIR="$REPO_ROOT/scripts/output/installers"
-
-mkdir -p "$OUT_DIR"
 
 . "$REPO_ROOT/scripts/common.sh"
+
+OUT_DIR="$INST_OUT_DIR"
+mkdir -p "$OUT_DIR"
 
 gen_installer_win() {
     cat <<XEOF > "$OUT_DIR/install-$TARGET.ps1"

@@ -1,5 +1,12 @@
 # shellcheck shell=sh
 
+AUX_DIR="$REPO_ROOT/scripts/aux"
+
+INST_OUT_DIR="$REPO_ROOT/scripts/output/installers"
+VM_OUT_DIR="$REPO_ROOT/scripts/output/vms"
+
+SHARED_DIR="$REPO_ROOT/scripts/output/shared"
+
 ZIG_TARGETS="
     x86_64-unknown-linux-gnu x86_64-unknown-linux-musl
     aarch64-unknown-linux-gnu aarch64-unknown-linux-musl

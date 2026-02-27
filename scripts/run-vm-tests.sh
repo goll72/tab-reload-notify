@@ -2,21 +2,29 @@
 # Downloads VM images and runs virtual machines with additional
 # setup so they can be used as testbeds for the extension.
 # 
-# Dependencies: `quickget`, `quickemu`, `sshpass`, `samba`
+# Dependencies: `quickget`, `quickemu`, `smbd` (samba)
 
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-OUT_DIR="$REPO_ROOT/scripts/output/vms"
-AUX_DIR="$REPO_ROOT/scripts/aux"
-
-SHARED_DIR="$REPO_ROOT/scripts/output/shared"
-
-mkdir -p "$OUT_DIR"
 
 . "$REPO_ROOT/scripts/common.sh"
 
+OUT_DIR="$VM_OUT_DIR"
+mkdir -p "$OUT_DIR"
+
 ARCH=$(uname -m)
+
+# Source: https://unix.stackexchange.com/a/655825
+pnrelpath() {
+    set -- "${1%/}/" "${2%/}/" ''               ## '/'-end to avoid mismatch
+    while [ "$1" ] && [ "$2" = "${2#"$1"}" ]    ## reduce $1 to shared path
+    do  set -- "${1%/?*/}/"  "$2" "../$3"       ## source/.. target ../relpath
+    done
+    REPLY="${3}${2#"$1"}"                       ## build result
+    # unless root chomp trailing '/', replace '' with '.'
+    [ "${REPLY#/}" ] && REPLY="${REPLY%/}" || REPLY="${REPLY:-.}"
+}
 
 case "$ARCH" in
     x86_64|aarch64)
@@ -50,11 +58,6 @@ respective \`.conf' file before running \`$(basename "$0") --run'.
 
 You should also run \`$(basename "$0") --save' so you
 can restore the VM images in case something goes wrong.
-
-Note: this script assumes you're using \`toor' as the main non-root user
-(able to run \`sudo') on Linux, FreeBSD and macOS, as well as \`Quickemu'
-on Windows (default when using quickemu's unattended ISO). The password
-shpuld match the username.
 EOF
     ;;
     --save)
@@ -66,115 +69,180 @@ EOF
         for i in "$OUT_DIR"/*/disk.qcow2; do
             cp "$i" "$i.bak"
         done
-
-        # Save additional information stored as files in the filesystem
-        {
-            [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/macos-sequoia/first-time-setup.over"
-            
-            [ -f "$OUT_DIR/windows-10/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/windows-10/first-time-setup.over"
-        } > "$OUT_DIR/saved.flag"
     ;;
     --restore)
         for i in "$OUT_DIR"/*/disk.qcow2.bak; do
             cp "$i" "${i%.bak}"
         done
-
-        . "$OUT_DIR/saved.flag"
     ;;
     --run)
-        # NOTE: commands that are run automatically inside "first time setup" guards may be
-        # side-effectful, but all other commands should strive to be as idempotent as possible.
         case "$2" in
             $ARCH-unknown-linux-musl)
+                if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-linux-musl.sh" ]; then
+                    echo "You need to run \`gen-installer.sh' first." >&2
+                    exit 1
+                fi
+
                 quickemu --vm alpine-v3.23.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
-                telnet localhost 6660 <<EOF
-apk add nodejs npm firefox cifs-utils
-EOF
-            ;;
-            $ARCH-unknown-freebsd)
-                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
-
-                telnet localhost 6660 <<EOF
-pkg add node25 npm-node25 firefox
-EOF
-            ;;
-            $ARCH-apple-darwin)
-                quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
-
-                if ! [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ]; theni
-                    # XXX: revise this
-                    cat <<EOF
-:: Additional setup required!
-
-Open a terminal window and run the following command:
+                cat <<EOF
+Run the following commands to run the tests:
 
 \`\`\`
-sudo passwd root
+sudo apk add nodejs npm firefox cifs-utils
+
+rm -R /tmp/trn
+mkdir -p /tmp/trn
+
+sudo mount -t cifs //10.0.2.4/qemu /mnt
+
+cd /mnt
+
+./install-$ARCH-unknown-linux-musl.sh
+cp -RL tests extension-* /tmp/trn
+
+cd /tmp/trn/tests
+
+npm install
+# ...
+\`\`\`
+EOF
+                telnet localhost 6660
+            ;;
+            $ARCH-unknown-freebsd)
+                if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-freebsd.sh" ]; then
+                    echo "You need to run \`gen-installer.sh' first." >&2
+                    exit 1
+                fi
+
+                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
+
+                cat <<EOF
+Run the following commands to run the tests:
+
+\`\`\`
+sudo pkg add node25 npm-node25 firefox
+
+rm -R /tmp/trn
+mkdir -p /tmp/trn
+
+sudo mount_smbfs //10.0.2.4/qemu /mnt
+
+cd /mnt
+
+./install-$ARCH-unknown-freebsd.sh
+cp -RL tests extension-* /tmp/trn
+
+cd /tmp/trn/tests
+
+npm install
+# ...
+\`\`\`
+EOF
+                telnet localhost 6660
+            ;;
+            $ARCH-apple-darwin)
+                if ! [ -f "$INST_OUT_DIR/install-$ARCH-apple-darwin.sh" ]; then
+                    echo "You need to run \`gen-installer.sh' first." >&2
+                    exit 1
+                fi
+
+                quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
+
+                cat <<EOF
+If you want to use a serial connection, open a
+terminal window and run the following command:
+
+\`\`\`
 sudo /usr/libexec/getty - tty.serial1
 \`\`\`
 
-Set the root password to \`root'. Then, after running
-the getty, press Enter/Return in the following prompt.
+Then, run the following commands to run the tests:
 
+\`\`\`
+sudo mkdir /shared
+mkdir -p /tmp/trn
+sudo mount -t smbfs //10.0.2.4/qemu /shared
+
+cd /shared
+
+sudo installer -pkg macos-firefox.pkg -target /
+sudo installer -pkg macos-nodejs.pkg -target /
+
+./install-$ARCH-apple-darwin.sh
+cp -RL tests extension-* /tmp/trn
+
+cd /tmp/trn/tests
+
+npm install
+# ...
+\`\`\`
 EOF
-
-                    printf "...> "
-                    read
-
-                    # XXX: just use ssh
-                    # "$AUX_DIR/macos-write-getty-service.sh"
-
-                    touch "$OUT_DIR/macos-sequoia/first-time-setup.over"
-
-                    echo "Shut down the VM and re-run it using this script to run tests."
-                    exit
-                fi
-
-                # "$AUX_DIR/macos-set-up-run-tests.sh"
+                telnet localhost 6660
             ;;
             $ARCH-pc-windows-msvc)
-                SSH="sshpass -p Quickemu ssh -o WarnWeakCrypto=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -p 22220"
-                POWERSHELL="C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                if ! [ -f "$INST_OUT_DIR/install-$ARCH-pc-windows-msvc.ps1" ]; then
+                    echo "You need to run \`gen-installer.sh' first." >&2
+                    exit 1
+                fi
 
                 quickemu --vm windows-10.conf --public-dir "$SHARED_DIR"
 
-                if ! [ -f "$OUT_DIR/windows-10/first-time-setup.over" ]; then
-                    cat <<EOF
-:: Additional setup required!
-
-Open a PowerShell window as Administrator and run the following commands:
+                cat <<EOF
+To enable OpenSSH and allow login, open a PowerShell
+window as Administrator and run the following commands:
 
 \`\`\`
 Get-WindowsCapability -Online -Name OpenSSH.Server* | Add-WindowsCapability -Online
+Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
 net user Quickemu *
 \`\`\`
 
+You only need to run them once.
+
 Once in the password prompt, use \`Quickemu' as the password.
-After doing that, press Enter/Return in the following prompt.
+After doing that, press Enter/Return on the following prompt.
 
 EOF
 
-                    printf "...> "
-                    read
+                printf "...> "
+                read
 
-                    $SSH quickemu@localhost "$POWERSHELL" -Command "Set-Service -Name sshd -StartupType Automatic"
+cat <<EOF
+To log in using ssh, run:
 
-                    touch "$OUT_DIR/windows-10/first-time-setup.over"
+\`\`\`
+ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-10
+\`\`\`
 
-                    echo "Shut down the VM and re-run it using this script to run tests."
-                    exit
-                fi
+You may want to run that command in a separate terminal window,
+as the OpenSSH server that comes bundled with Windows will clear
+the screen upon login.
 
-                # These two commands are separate so that changes in the
-                # PATH may be replicated in the last PowerShell session
-                $SSH quickemu@localhost "$POWERSHELL" -Command "winget install -e --id OpenJS.NodeJS"
-                $SSH quickemu@localhost "$POWERSHELL" -Command "winget install -e --id Mozilla.Firefox"
+After logging in, run the following commands to run the tests:
 
-                $SSH quickemu@localhost "$POWERSHELL" < "$AUX_DIR/windows-set-up-run-tests.ps1"
+\`\`\`
+winget install -e --id OpenJS.NodeJS Mozilla.Firefox
+
+\$share = \\\\10.0.2.4\\qemu
+\$trn = \$env:TMP\\trn
+mkdir \$trn
+
+Invoke-Command \$share\\install-$ARCH-pc-windows-msvc
+Copy-Item -Recurse -Path \$share\\tests \$share\\extension-* -Destination \$trn
+
+cd \$trn\\tests
+
+npm install
+# ...
+\`\`\`
+
+You may need to log out and log back in so Firefox
+and NodeJS get added to the system's executable path.
+EOF
+
+                
 EOF
             ;;
             "")
