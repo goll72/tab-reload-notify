@@ -2,7 +2,7 @@
 # Downloads VM images and runs virtual machines with additional
 # setup so they can be used as testbeds for the extension.
 # 
-# Dependencies: `quickget`, `quickemu`, `smbd` (samba)
+# Dependencies: `quickget`, `quickemu`, `smbd` (samba), `curl`
 
 set -e
 
@@ -69,15 +69,42 @@ EOF
         for i in "$OUT_DIR"/*/disk.qcow2; do
             cp "$i" "$i.bak"
         done
+
+        {
+            [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/alpine-v3.23/first-time-setup.over"
+            
+            [ -f "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over"
+            
+            [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/macos-sequoia/first-time-setup.over"
+
+            [ -f "$OUT_DIR/windows-10/first-time-setup.over" ] && X=touch || X="rm -f"
+            echo "$X \$OUT_DIR/windows-10/first-time-setup.over"
+        } > "$OUT_DIR/saved.flag"
     ;;
     --restore)
         for i in "$OUT_DIR"/*/disk.qcow2.bak; do
             cp "$i" "${i%.bak}"
         done
+
+        . "$OUT_DIR/saved.flag"
     ;;
     --run)
+        mkdir -p "$SHARED_DIR"
+
+        for i in "$INST_OUT_DIR"/*; do
+            ln -sf "$i" "$SHARED_DIR/$(basename "$i")"
+        done
+
+        [ -f "$SHARED_DIR/macos-firefox.pkg" ] || curl -L "https://ftp.mozilla.org/pub/firefox/releases/148.0/mac/en-US/Firefox%20148.0.pkg" -o "$SHARED_DIR/macos-firefox.pkg"
+        [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
+
+        ln -sf "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension-firefox.zip"
+    
         case "$2" in
-            $ARCH-unknown-linux-musl)
+            "$ARCH-unknown-linux-musl")
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-linux-musl.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
@@ -85,17 +112,42 @@ EOF
 
                 quickemu --vm alpine-v3.23.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
-                cat <<EOF
-Run \`telnet localhost 6660' in a separate terminal window,
-log in as a non-root user with access to \`sudo', then run:
+                if ! [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ]; then
+                    cat <<EOF
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`root'.
+
+Run:
 
 \`\`\`
-sudo apk add nodejs npm firefox cifs-utils
+adduser trn
+addgroup trn wheel
 
+apk add doas nodejs npm firefox cifs-utils
+echo "permit persist :wheel" > /etc/doas.d/20-wheel.conf
+
+exit
+\`\`\`
+
+EOF
+
+                    printf "...> "
+                    read -r _
+                    
+                    touch "$OUT_DIR/alpine-v3.23/first-time-setup.over"
+                fi
+            
+                cat <<EOF
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`trn'.
+
+Run:
+
+\`\`\`
 rm -R /tmp/trn
 mkdir -p /tmp/trn
 
-sudo mount -t cifs //10.0.2.4/qemu /mnt
+doas mount -t cifs //10.0.2.4/qemu /mnt
 
 cd /mnt
 
@@ -109,7 +161,7 @@ npm install
 \`\`\`
 EOF
             ;;
-            $ARCH-unknown-freebsd)
+            "$ARCH-unknown-freebsd")
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-freebsd.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
@@ -117,13 +169,33 @@ EOF
 
                 quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
-                cat <<EOF
-Run \`telnet localhost 6660' in a separate terminal window,
-log in as a non-root user with access to \`sudo', then run:
+                if ! [ -f "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over" ]; then
+                    cat <<EOF
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`root'.
+
+Run:
 
 \`\`\`
-sudo pkg add node25 npm-node25 firefox
+pw useradd -n trn -G wheel 
+pkg add node25 npm-node25 firefox
 
+exit
+\`\`\`
+EOF
+                    printf "...> "
+                    read -r _
+
+                    touch "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over"
+                fi
+
+                cat <<EOF
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`trn'.
+
+Run:
+
+\`\`\`
 rm -R /tmp/trn
 mkdir -p /tmp/trn
 
@@ -141,7 +213,7 @@ npm install
 \`\`\`
 EOF
             ;;
-            $ARCH-apple-darwin)
+            "$ARCH-apple-darwin")
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-apple-darwin.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
@@ -156,15 +228,16 @@ Open a terminal window on macOS and run:
 sudo /usr/libexec/getty - tty.serial1
 \`\`\`
 
-Then, in a separate terminal window on the host, run \`telnet localhost 6660',
-log in as a non-root user with access to \`sudo', then run:
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in.
+
+Run:
 
 \`\`\`
-sudo mkdir /shared
-mkdir -p /tmp/trn
-sudo mount -t smbfs //10.0.2.4/qemu /shared
+mkdir -p /tmp/trn /tmp/shared
+sudo mount -t smbfs //10.0.2.4/qemu /tmp/shared
 
-cd /shared
+cd /tmp/shared
 
 sudo installer -pkg macos-firefox.pkg -target /
 sudo installer -pkg macos-nodejs.pkg -target /
@@ -179,7 +252,7 @@ npm install
 \`\`\`
 EOF
             ;;
-            $ARCH-pc-windows-msvc)
+            "$ARCH-pc-windows-msvc")
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-pc-windows-msvc.ps1" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
@@ -187,40 +260,42 @@ EOF
 
                 quickemu --vm windows-10.conf --public-dir "$SHARED_DIR"
 
-                cat <<EOF
-To enable OpenSSH and allow login, open a PowerShell
-window as Administrator and run the following commands:
+                if ! [ -f "$OUT_DIR/windows-10/first-time-setup.over" ]; then
+                    cat <<EOF
+On Windows, open a PowerShell window as Administrator.
+
+Run:
 
 \`\`\`
 Get-WindowsCapability -Online -Name OpenSSH.Server* | Add-WindowsCapability -Online
 Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
+
 net user Quickemu *
+
+winget install -e --id OpenJS.NodeJS Mozilla.Firefox
 \`\`\`
-
-You only need to run them once.
-
-Once in the password prompt, use \`Quickemu' as the password.
-After doing that, press Enter/Return on the following prompt.
 
 EOF
 
-                printf "...> "
-                read
+                    printf "...> "
+                    read -r _
+
+                    touch "$OUT_DIR/windows-10/first-time-setup.over"
+                fi
 
 cat <<EOF
-Run \`ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-10' in a separate terminal window.
+Access VM by running \`ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-10' in a separate terminal window.
 
-Log in as \`Quickemu', then run:
+Run:
 
 \`\`\`
-winget install -e --id OpenJS.NodeJS Mozilla.Firefox
-
 \$share = \\\\10.0.2.4\\qemu
 \$trn = \$env:TMP\\trn
+
 mkdir \$trn
 
-Invoke-Command \$share\\install-$ARCH-pc-windows-msvc
+Invoke-Command \$share\\install-$ARCH-pc-windows-msvc.ps1
 Copy-Item -Recurse -Path \$share\\tests \$share\\extension-* -Destination \$trn
 
 cd \$trn\\tests
@@ -228,9 +303,6 @@ cd \$trn\\tests
 npm install
 # ...
 \`\`\`
-
-You may need to log out and log back in so Firefox
-and NodeJS get added to the system's executable path.
 EOF
             ;;
             "")
