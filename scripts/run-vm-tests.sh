@@ -2,7 +2,8 @@
 # Downloads VM images and runs virtual machines with additional
 # setup so they can be used as testbeds for the extension.
 # 
-# Dependencies: `quickget`, `quickemu`, `smbd` (samba), `curl`, `rsync`
+# Dependencies: `quickget`, `quickemu`, `smbd` (samba), `curl`,
+# `rsync`, `unzip`
 
 set -e
 
@@ -100,7 +101,9 @@ EOF
 
         [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
 
-        ln -sf "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension-firefox.zip"
+        # Firefox expects a zip file, while Chrome expects the unpacked extension directory
+        ln -sf "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension.zip"
+        unzip -d "$SHARED_DIR/extension" "$SHARED_DIR/extension.zip"
 
         rsync -rL --exclude="node_modules/*" --exclude=package-lock.json "$REPO_ROOT/tests/" "$SHARED_DIR/tests"
 
@@ -153,11 +156,12 @@ doas mount -t cifs //10.0.2.4/qemu /mnt
 cd /mnt
 
 ./install-$ARCH-unknown-linux-musl.sh
-cp -R tests extension-* /tmp/trn
+cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
 
 npm install
+npx puppeteer browsers install firefox
 # ...
 \`\`\`
 EOF
@@ -205,11 +209,12 @@ sudo mount_smbfs //10.0.2.4/qemu /mnt
 cd /mnt
 
 ./install-$ARCH-unknown-freebsd.sh
-cp -R tests extension-* /tmp/trn
+cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
 
 npm install
+npx puppeteer browsers install firefox
 # ...
 \`\`\`
 EOF
@@ -243,11 +248,12 @@ cd /tmp/shared
 sudo installer -pkg macos-nodejs.pkg -target /
 
 ./install-$ARCH-apple-darwin.sh
-cp -R tests extension-* /tmp/trn
+cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
 
 npm install
+npx puppeteer browsers install firefox
 # ...
 \`\`\`
 EOF
@@ -296,11 +302,12 @@ Run:
 mkdir \$trn
 
 Invoke-Command \$share\\install-$ARCH-pc-windows-msvc.ps1
-Copy-Item -Recurse -Path \$share\\tests \$share\\extension-* -Destination \$trn
+Copy-Item -Recurse -Path \$share\\tests \$share\\extension* -Destination \$trn
 
 cd \$trn\\tests
 
 npm install
+npx puppeteer browsers install firefox
 # ...
 \`\`\`
 EOF

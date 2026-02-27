@@ -1,0 +1,10 @@
+{
+    "name": "tab-reload-notify-tests",
+    "version": "1.0.0",
+    "description": "Tests for the tab-reload-notify browser extension",
+    "license": "MIT",
+    "type": "module",
+    "dependencies": {
+        "puppeteer": "^24.37.5"
+    }
+}

@@ -1,5 +1,7 @@
 # shellcheck shell=sh
 
+VERSION=$(jq --raw-output '.version' < "$REPO_ROOT/src/manifest.json")
+
 AUX_DIR="$REPO_ROOT/scripts/aux"
 
 INST_OUT_DIR="$REPO_ROOT/scripts/output/installers"

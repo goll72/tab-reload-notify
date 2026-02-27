@@ -1,6 +1,8 @@
 *.js
+*.png
 node_modules/
 web-ext-artifacts/
 native/notify-server/target/
 native/native-manifest.json
 scripts/output/
+tests/package-lock.json
