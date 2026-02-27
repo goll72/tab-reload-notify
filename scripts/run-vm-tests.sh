@@ -86,7 +86,8 @@ EOF
                 quickemu --vm alpine-v3.23.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
                 cat <<EOF
-Run the following commands to run the tests:
+Run \`telnet localhost 6660' in a separate terminal window,
+log in as a non-root user with access to \`sudo', then run:
 
 \`\`\`
 sudo apk add nodejs npm firefox cifs-utils
@@ -107,7 +108,6 @@ npm install
 # ...
 \`\`\`
 EOF
-                telnet localhost 6660
             ;;
             $ARCH-unknown-freebsd)
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-freebsd.sh" ]; then
@@ -118,7 +118,8 @@ EOF
                 quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
                 cat <<EOF
-Run the following commands to run the tests:
+Run \`telnet localhost 6660' in a separate terminal window,
+log in as a non-root user with access to \`sudo', then run:
 
 \`\`\`
 sudo pkg add node25 npm-node25 firefox
@@ -139,7 +140,6 @@ npm install
 # ...
 \`\`\`
 EOF
-                telnet localhost 6660
             ;;
             $ARCH-apple-darwin)
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-apple-darwin.sh" ]; then
@@ -150,14 +150,14 @@ EOF
                 quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
 
                 cat <<EOF
-If you want to use a serial connection, open a
-terminal window and run the following command:
+Open a terminal window on macOS and run:
 
 \`\`\`
 sudo /usr/libexec/getty - tty.serial1
 \`\`\`
 
-Then, run the following commands to run the tests:
+Then, in a separate terminal window on the host, run \`telnet localhost 6660',
+log in as a non-root user with access to \`sudo', then run:
 
 \`\`\`
 sudo mkdir /shared
@@ -178,7 +178,6 @@ npm install
 # ...
 \`\`\`
 EOF
-                telnet localhost 6660
             ;;
             $ARCH-pc-windows-msvc)
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-pc-windows-msvc.ps1" ]; then
@@ -210,17 +209,9 @@ EOF
                 read
 
 cat <<EOF
-To log in using ssh, run:
+Run \`ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-10' in a separate terminal window.
 
-\`\`\`
-ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-10
-\`\`\`
-
-You may want to run that command in a separate terminal window,
-as the OpenSSH server that comes bundled with Windows will clear
-the screen upon login.
-
-After logging in, run the following commands to run the tests:
+Log in as \`Quickemu', then run:
 
 \`\`\`
 winget install -e --id OpenJS.NodeJS Mozilla.Firefox
@@ -240,9 +231,6 @@ npm install
 
 You may need to log out and log back in so Firefox
 and NodeJS get added to the system's executable path.
-EOF
-
-                
 EOF
             ;;
             "")
