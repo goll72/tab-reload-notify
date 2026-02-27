@@ -8,7 +8,7 @@ set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$REPO_ROOT/scripts/output/vms"
-RES_DIR="$REPO_ROOT/scripts/resources"
+AUX_DIR="$REPO_ROOT/scripts/aux"
 
 SHARED_DIR="$REPO_ROOT/scripts/output/shared"
 
@@ -50,6 +50,11 @@ respective \`.conf' file before running \`$(basename "$0") --run'.
 
 You should also run \`$(basename "$0") --save' so you
 can restore the VM images in case something goes wrong.
+
+Note: this script assumes you're using \`toor' as the main non-root user
+(able to run \`sudo') on Linux, FreeBSD and macOS, as well as \`Quickemu'
+on Windows (default when using quickemu's unattended ISO). The password
+shpuld match the username.
 EOF
     ;;
     --save)
@@ -59,7 +64,7 @@ EOF
         fi
 
         for i in "$OUT_DIR"/*/disk.qcow2; do
-            cp --reflink=always "$i" "$i.bak"
+            cp "$i" "$i.bak"
         done
 
         # Save additional information stored as files in the filesystem
@@ -79,12 +84,6 @@ EOF
         . "$OUT_DIR/saved.flag"
     ;;
     --run)
-        # NOTE: on Linux and FreeBSD, a serial interface is set up and used to run
-        # commands without user intervention. On macOS, a serial interface is also
-        # used but that requires initial user intervention. Windows doesn't support
-        # running terminal applications over a serial interface, so SSH is used,
-        # also requiring initial user intervention.
-        # 
         # NOTE: commands that are run automatically inside "first time setup" guards may be
         # side-effectful, but all other commands should strive to be as idempotent as possible.
         case "$2" in
@@ -105,53 +104,36 @@ EOF
             $ARCH-apple-darwin)
                 quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
 
-                if ! [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ]; then
+                if ! [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ]; theni
+                    # XXX: revise this
                     cat <<EOF
 :: Additional setup required!
 
 Open a terminal window and run the following command:
 
-```
+\`\`\`
+sudo passwd root
 sudo /usr/libexec/getty - tty.serial1
-```
+\`\`\`
 
-After typing in your user's password, press Enter/Return in the following prompt.
+Set the root password to \`root'. Then, after running
+the getty, press Enter/Return in the following prompt.
 
 EOF
 
                     printf "...> "
                     read
 
-                    telnet localhost 6660 <<XEOF
-cat <<EOF > /Library/LaunchDaemons/getty.tty.serial1.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>getty.tty.serial1</string>
+                    # XXX: just use ssh
+                    # "$AUX_DIR/macos-write-getty-service.sh"
 
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/libexec/getty</string>
-        <string>-</string>
-        <string>tty.serial1</string>
-    </array>
+                    touch "$OUT_DIR/macos-sequoia/first-time-setup.over"
 
-    <key>RunAtLoad</key>
-    <true/>
-
-    <key>KeepAlive</key>
-    <true/>
-</plist>
-EOF
-XEOF
+                    echo "Shut down the VM and re-run it using this script to run tests."
+                    exit
                 fi
 
-                telnet localhost 6660 <<EOF
-mkdir -p /tmp/tab-reload-notify
-mount -t smbfs smb://10.0.2.4/qemu /tmp/tab-reload-notify
-EOF
+                # "$AUX_DIR/macos-set-up-run-tests.sh"
             ;;
             $ARCH-pc-windows-msvc)
                 SSH="sshpass -p Quickemu ssh -o WarnWeakCrypto=no -o PreferredAuthentications=password -o PubkeyAuthentication=no -p 22220"
@@ -179,14 +161,20 @@ EOF
                     printf "...> "
                     read
 
-                    $SSH quickemu@localhost "$POWERSHELL" <<EOF
-Set-Service -Name sshd -StartupType Automatic 
-EOF
+                    $SSH quickemu@localhost "$POWERSHELL" -Command "Set-Service -Name sshd -StartupType Automatic"
+
+                    touch "$OUT_DIR/windows-10/first-time-setup.over"
+
+                    echo "Shut down the VM and re-run it using this script to run tests."
+                    exit
                 fi
 
-                $SSH quickemu@localhost "$POWERSHELL" <<EOF
-winget install -e --id OpenJS.NodeJS
-winget install -e --id Mozilla.Firefox
+                # These two commands are separate so that changes in the
+                # PATH may be replicated in the last PowerShell session
+                $SSH quickemu@localhost "$POWERSHELL" -Command "winget install -e --id OpenJS.NodeJS"
+                $SSH quickemu@localhost "$POWERSHELL" -Command "winget install -e --id Mozilla.Firefox"
+
+                $SSH quickemu@localhost "$POWERSHELL" < "$AUX_DIR/windows-set-up-run-tests.ps1"
 EOF
             ;;
             "")
