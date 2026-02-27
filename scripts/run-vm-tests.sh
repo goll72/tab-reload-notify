@@ -2,7 +2,7 @@
 # Downloads VM images and runs virtual machines with additional
 # setup so they can be used as testbeds for the extension.
 # 
-# Dependencies: `quickget`, `quickemu`, `smbd` (samba), `curl`
+# Dependencies: `quickget`, `quickemu`, `smbd` (samba), `curl`, `rsync`
 
 set -e
 
@@ -98,11 +98,12 @@ EOF
             ln -sf "$i" "$SHARED_DIR/$(basename "$i")"
         done
 
-        [ -f "$SHARED_DIR/macos-firefox.pkg" ] || curl -L "https://ftp.mozilla.org/pub/firefox/releases/148.0/mac/en-US/Firefox%20148.0.pkg" -o "$SHARED_DIR/macos-firefox.pkg"
         [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
 
         ln -sf "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension-firefox.zip"
-    
+
+        rsync -rL --exclude="node_modules/*" --exclude=package-lock.json "$REPO_ROOT/tests/" "$SHARED_DIR/tests"
+
         case "$2" in
             "$ARCH-unknown-linux-musl")
                 if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-linux-musl.sh" ]; then
@@ -123,7 +124,7 @@ Run:
 adduser trn
 addgroup trn wheel
 
-apk add doas nodejs npm firefox cifs-utils
+apk add doas nodejs npm cifs-utils
 echo "permit persist :wheel" > /etc/doas.d/20-wheel.conf
 
 exit
@@ -152,7 +153,7 @@ doas mount -t cifs //10.0.2.4/qemu /mnt
 cd /mnt
 
 ./install-$ARCH-unknown-linux-musl.sh
-cp -RL tests extension-* /tmp/trn
+cp -R tests extension-* /tmp/trn
 
 cd /tmp/trn/tests
 
@@ -178,7 +179,7 @@ Run:
 
 \`\`\`
 pw useradd -n trn -G wheel 
-pkg add node25 npm-node25 firefox
+pkg add node25 npm-node25
 
 exit
 \`\`\`
@@ -204,7 +205,7 @@ sudo mount_smbfs //10.0.2.4/qemu /mnt
 cd /mnt
 
 ./install-$ARCH-unknown-freebsd.sh
-cp -RL tests extension-* /tmp/trn
+cp -R tests extension-* /tmp/trn
 
 cd /tmp/trn/tests
 
@@ -239,11 +240,10 @@ sudo mount -t smbfs //10.0.2.4/qemu /tmp/shared
 
 cd /tmp/shared
 
-sudo installer -pkg macos-firefox.pkg -target /
 sudo installer -pkg macos-nodejs.pkg -target /
 
 ./install-$ARCH-apple-darwin.sh
-cp -RL tests extension-* /tmp/trn
+cp -R tests extension-* /tmp/trn
 
 cd /tmp/trn/tests
 
@@ -273,7 +273,7 @@ Start-Service sshd
 
 net user Quickemu *
 
-winget install -e --id OpenJS.NodeJS Mozilla.Firefox
+winget install -e --id OpenJS.NodeJS
 \`\`\`
 
 EOF
