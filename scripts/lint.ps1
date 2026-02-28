@@ -9,4 +9,4 @@ $settings = @{
     }
 }
 
-Invoke-ScriptAnalyzer -Path ./scripts/resources/install-win.ps1 -Settings $settings
+Invoke-ScriptAnalyzer -Path ./scripts/aux/install-win.ps1 -Settings $settings

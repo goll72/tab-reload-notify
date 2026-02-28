@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Generates installer scripts for the extension's native component.
 #
 # To run this script, you will need to install all of the targets listed in
 # `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,`cargo-xwin`,
-# a macOS Xcode SDK, `gzip` and `base64`.
+# a macOS Xcode SDK, `zip`, `gzip` and `base64`.
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -16,17 +16,23 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$INST_OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-NATIVE_MANIFEST_NAME=tab_reload_notify_server.json
-
 gen_installer_win() {
-    cat <<XEOF > "$OUT_DIR/install-$TARGET.ps1"
-XEOF
+    NATIVE_MANIFEST=$(< "$REPO_ROOT/native/native-manifest.json.in")
+    NATIVE_MANIFEST="${NATIVE_MANIFEST/"%SERVER_BINARY_PATH%"/notify-server.exe}"
+
+    INSTALL_SCRIPT=$(< "$AUX_DIR/install-win.ps1")
+    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%B64_ZIP_DATA%"/$(zip -9 -j - "$BINARY" | base64)}"
+    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%NATIVE_MANIFEST%"/$NATIVE_MANIFEST}"
+
+    cat <<< "$INSTALL_SCRIPT" > "$OUT_DIR/install-$TARGET.ps1"
 }
 
 gen_installer_nix() {
+    NATIVE_MANIFEST_NAME=tab_reload_notify_server.json
+
     cat <<XEOF > "$OUT_DIR/install-$TARGET.sh"
 #!/bin/sh
-$(echo "$BANNER" | sed "s/^/# /")
+$(sed "s/^/# /" <<< "$BANNER")
 
 [ -z "\${FIREFOX+1}\${CHROME+1}\${CHROME_FOR_TESTING+1}\${CHROMIUM+1}" ] && ALL=1
 
@@ -40,9 +46,9 @@ while [ \$# -ne 0 ]; do
     case "\$1" in
         --user)
             NATIVE_MANIFEST_DIR_FIREFOX="$USER_NATIVE_MANIFEST_DIR_FF"
-            NATIVE_MANIFEST_DIR_CHROME="$(echo "$USER_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$USER_CHROME_PLACEHOLDER:")"
-            NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING="$(echo "$USER_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$USER_CHROME_FOR_TESTING_PLACEHOLDER:")"
-            NATIVE_MANIFEST_DIR_CHROMIUM="$(echo "$USER_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$USER_CHROMIUM_PLACEHOLDER:")"
+            NATIVE_MANIFEST_DIR_CHROME="${USER_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$USER_CHROME_PLACEHOLDER}"
+            NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING="${USER_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$USER_CHROME_FOR_TESTING_PLACEHOLDER}"
+            NATIVE_MANIFEST_DIR_CHROMIUM="${USER_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$USER_CHROMIUM_PLACEHOLDER}"
             
             SERVER_BINARY_PATH="$USER_SERVER_BINARY_PATH"
         ;;
@@ -55,9 +61,9 @@ while [ \$# -ne 0 ]; do
             fi
 
             NATIVE_MANIFEST_DIR_FIREFOX="$SYSTEM_NATIVE_MANIFEST_DIR_FF"
-            NATIVE_MANIFEST_DIR_CHROME="$(echo "$SYSTEM_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$SYSTEM_CHROME_PLACEHOLDER:")"
-            NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING="$(echo "$SYSTEM_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$SYSTEM_CHROME_FOR_TESTING_PLACEHOLDER:")"
-            NATIVE_MANIFEST_DIR_CHROMIUM="$(echo "$SYSTEM_NATIVE_MANIFEST_DIR_CHROME" | sed "s:%CHROME%:$SYSTEM_CHROMIUM_PLACEHOLDER:")"
+            NATIVE_MANIFEST_DIR_CHROME="${SYSTEM_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$SYSTEM_CHROME_PLACEHOLDER}"
+            NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING="${SYSTEM_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$SYSTEM_CHROME_FOR_TESTING_PLACEHOLDER}"
+            NATIVE_MANIFEST_DIR_CHROMIUM="${SYSTEM_NATIVE_MANIFEST_DIR_CHROME/"%CHROME%"/$SYSTEM_CHROMIUM_PLACEHOLDER}"
             
             SERVER_BINARY_PATH="$SYSTEM_SERVER_BINARY_PATH"
         ;;
@@ -104,7 +110,7 @@ trap 'rm -f "\$TMPDIR/notify-server" "\$TMPDIR/native-manifest.json"; rmdir "\$T
 tail -n +\$(sed -n "/^BEGIN_BASE64_ENCODED_DATA/{ n; =; }" "\$0") "\$0" | base64 -d | gzip -d > "\$TMPDIR/notify-server"
 
 cat <<EOF > "\$TMPDIR/native-manifest.json"
-$(cat "$REPO_ROOT/native/native-manifest.json.in" | sed "s:%SERVER_BINARY_PATH%:\$SERVER_BINARY_PATH:")
+$(sed "s:%SERVER_BINARY_PATH%:\$SERVER_BINARY_PATH:" < "$REPO_ROOT/native/native-manifest.json.in")
 EOF
 
 [ -n "\${FIREFOX:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"

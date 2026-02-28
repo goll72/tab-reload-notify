@@ -72,17 +72,14 @@ EOF
         done
 
         {
-            [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/alpine-v3.23/first-time-setup.over"
+            cd "$OUT_DIR" > /dev/null
             
-            [ -f "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over"
-            
-            [ -f "$OUT_DIR/macos-sequoia/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/macos-sequoia/first-time-setup.over"
+            for i in */; do
+                [ -f "${i%/}/first-time-setup.over" ] && X=touch || X="rm -f"
+                echo "$X \$OUT_DIR/${i%/}/first-time-setup.over"
+            done
 
-            [ -f "$OUT_DIR/windows-10/first-time-setup.over" ] && X=touch || X="rm -f"
-            echo "$X \$OUT_DIR/windows-10/first-time-setup.over"
+            cd - > /dev/null
         } > "$OUT_DIR/saved.flag"
     ;;
     --restore)
