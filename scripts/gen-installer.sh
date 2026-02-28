@@ -179,6 +179,7 @@ EOF
             USER_NATIVE_MANIFEST_DIR_CHROME="\${XDG_CONFIG_HOME:-\$HOME/.config}/%CHROME%/NativeMessagingHosts" \
             SYSTEM_NATIVE_MANIFEST_DIR_CHROME="/etc/%CHROME%/native-messaging-hosts" \
             USER_SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server" \
+            # XXX: maybe this should be changed to `/usr/local`?
             SYSTEM_SERVER_BINARY_PATH="/usr/libexec/tab-reload-notify/notify-server" \
                 gen_installer_nix
         ;;
