@@ -1,9 +1,9 @@
 tab-reload-notify
 =================
 
-This Firefox browser extension automatically reloads tabs using the file URI
-scheme when their content changes, by using file watch primitives. The Rust
-crate `notify` is used, thus supporting the following backends:
+This browser extension automatically reloads tabs using the file URI scheme
+when their content changes, by using file watch primitives. The Rust crate
+`notify` is used, thus supporting the following backends:
 
  - Linux: inotify
  - macOS: FSEvent/kqueue
