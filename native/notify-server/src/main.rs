@@ -20,6 +20,8 @@ use thiserror::Error;
 use notify::{Config, EventKindMask, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 
+mod windows;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "command")]
@@ -85,6 +87,13 @@ enum WatchRequest {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::set_fd_mode(0, windows::mode::_O_BINARY).unwrap();
+        windows::set_fd_mode(1, windows::mode::_O_BINARY).unwrap();
+        windows::set_fd_mode(2, windows::mode::_O_BINARY).unwrap();
+    }
+
     type DirectoryMap<'a> = Arc<Mutex<HashMap<PathBuf, BTreeSet<Cow<'a, Path>>>>>;
 
     // Maps a directory which is actually being watched to children inside it
