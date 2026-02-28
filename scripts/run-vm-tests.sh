@@ -329,7 +329,7 @@ Usage: $(basename "$0") [ -h | --help | --download | --run <TARGET> ]
 Downloads VM images and runs virtual machines with additional set up
 so they can be used as testbeds for the extension.
 
-    -h | --help
+    -h, --help
         Show this help menu
 
     --download
