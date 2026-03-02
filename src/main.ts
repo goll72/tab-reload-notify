@@ -1,6 +1,6 @@
 import "./browser-polyfill.js";
 
-import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
+import { getRegexFlags, parseRegexList, DEFAULT_OPTIONS } from "./common.js";
 import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
@@ -132,7 +132,7 @@ notifyServer.onMessage.addListener(async event => {
     }
 });
 
-function loadOptions() {
+async function loadOptions() {
     const prevReloadRemoved = options.reloadRemoved;
 
     browser.storage.local.get(DEFAULT_OPTIONS).then(x => {
@@ -151,7 +151,7 @@ function loadOptions() {
     if (regexList.length === 0) {
         regex = undefined;
     } else {
-        regex = RegExp(regexList.join("|"), REGEX_FLAGS);
+        regex = RegExp(regexList.join("|"), await getRegexFlags());
     }
 }
 

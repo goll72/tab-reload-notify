@@ -1,10 +1,18 @@
 import "./browser-polyfill.js";
 
-import { parseRegexList, DEFAULT_OPTIONS, REGEX_FLAGS } from "./common.js";
+import { isFirefox, isChrome } from "./common.js";
+import { getRegexFlags, parseRegexList, DEFAULT_OPTIONS } from "./common.js";
+
 import type { Options, OptionsFormElement } from "./types";
 
 const form = document.querySelector("form") as OptionsFormElement;
 const regexErrors = document.querySelector("#regex-errors");
+
+if (isFirefox()) {
+    document.documentElement.classList.add("firefox");
+} else if (isChrome()) {
+    document.documentElement.classList.add("chrome");
+}
 
 function loadOptions() {
     browser.storage.local.get(DEFAULT_OPTIONS).then((options: Options) => {
@@ -37,7 +45,7 @@ form.addEventListener("submit", async event => {
     // behavior when joining the regexes using string concatenation
     for (const { text: regex, index } of regexes) {
         try {
-            RegExp(regex, REGEX_FLAGS);
+            RegExp(regex, await getRegexFlags());
         } catch (error) {
             if (regexErrors?.children.length === 0) {
                 const heading = document.createElement("h3");

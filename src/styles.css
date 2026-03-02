@@ -1,11 +1,10 @@
 :root {
   color-scheme: light dark;
 
-  /* Taken from chrome://global/skin/design-system/tokens-shared.css */
+  /* Taken from chrome://global/skin/design-system/tokens-shared.css on Firefox */
   --color-white: #ffffff;
   --color-gray-80: #23222b;
 
-  --bg: light-dark(var(--color-white), var(--color-gray-80));
   --error-bg: light-dark(#cb4545, #dc5555);
 
   --text: CanvasText;
@@ -13,6 +12,14 @@
   --hover-bg: color-mix(in srgb, AccentColor 12%, transparent);
   --button-bg: AccentColor;
   --button-text: AccentColorText;
+}
+
+:root.firefox {
+  --bg: light-dark(var(--color-white), var(--color-gray-80));
+}
+
+:root.chrome {
+  --bg: light-dark(var(--color-white), #292a2d);
 }
 
 /* Page layout */
