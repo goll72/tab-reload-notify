@@ -91,16 +91,13 @@ EOF
     ;;
     --run)
         mkdir -p "$SHARED_DIR"
-
-        for i in "$INST_OUT_DIR"/*; do
-            ln -sf "$i" "$SHARED_DIR/$(basename "$i")"
-        done
+        cp "$INST_OUT_DIR"/* "$SHARED_DIR"
 
         [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
 
         # Firefox expects a zip file, while Chrome expects the unpacked extension directory
-        ln -sf "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension.zip"
-        unzip -d "$SHARED_DIR/extension" "$SHARED_DIR/extension.zip"
+        cp "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension.zip"
+        unzip -o -d "$SHARED_DIR/extension" "$SHARED_DIR/extension.zip"
 
         rsync -rL --exclude="node_modules/*" --exclude=package-lock.json "$REPO_ROOT/tests/" "$SHARED_DIR/tests"
 
@@ -124,7 +121,9 @@ Run:
 adduser trn
 addgroup trn wheel
 
-apk add doas nodejs npm cifs-utils
+setup-apkrepos -c
+
+apk add doas nodejs npm cifs-utils xz firefox chromium
 echo "permit persist :wheel" > /etc/doas.d/20-wheel.conf
 
 exit
@@ -158,8 +157,11 @@ cp -R tests extension* /tmp/trn
 cd /tmp/trn/tests
 
 npm install
-npx puppeteer browsers install firefox
-# ...
+
+export PUPPETEER_SKIP_DOWNLOAD=1
+
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/firefox BROWSER=firefox node main.ts
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser BROWSER=chrome node main.ts
 \`\`\`
 EOF
             ;;
@@ -212,7 +214,9 @@ cd /tmp/trn/tests
 
 npm install
 npx puppeteer browsers install firefox
-# ...
+
+BROWSER=firefox node main.ts
+BROWSER=chrome node main.ts
 \`\`\`
 EOF
             ;;
@@ -251,7 +255,9 @@ cd /tmp/trn/tests
 
 npm install
 npx puppeteer browsers install firefox
-# ...
+
+BROWSER=firefox node main.ts
+BROWSER=chrome node main.ts
 \`\`\`
 EOF
             ;;
@@ -305,7 +311,9 @@ cd \$trn\\tests
 
 npm install
 npx puppeteer browsers install firefox
-# ...
+
+$env:BROWSER = 'firefox'; node main.ts
+$env:BROWSER = 'chrome'; node main.ts
 \`\`\`
 EOF
             ;;
