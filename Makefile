@@ -39,7 +39,7 @@ src/browser-polyfill.js: node_modules
 src/icon%.png: src/icon.svg
 	rsvg-convert --width=$* --height=$* --keep-aspect-ratio $? > $@ 
 
-$(EXTENSION_ZIP): $(JS) src/browser-polyfill.js $(ICONS) src/manifest.json
+$(EXTENSION_ZIP): $(JS) src/browser-polyfill.js src/options.html $(ICONS) src/manifest.json
 	npx web-ext build --overwrite-dest -s src -i '*.ts' -i '*.svg'
 
 $(SERVER_BINARY): native/notify-server/src/main.rs
