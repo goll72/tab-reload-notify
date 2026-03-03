@@ -16,6 +16,9 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$INST_OUT_DIR"
 mkdir -p "$OUT_DIR"
 
+FF_EXT_ID="tab_reload_notify@goll.cc"
+CHROME_EXT_ID="chrome-extension://caipeemdlajodnnmkjhbnbfaiomgoplf/"
+
 gen_installer_win() {
     NATIVE_MANIFEST=$(< "$REPO_ROOT/native/native-manifest.json.in")
     NATIVE_MANIFEST="${NATIVE_MANIFEST/"%SERVER_BINARY_PATH%"/notify-server.exe}"
@@ -23,6 +26,8 @@ gen_installer_win() {
     INSTALL_SCRIPT=$(< "$AUX_DIR/install-win.ps1")
     INSTALL_SCRIPT="${INSTALL_SCRIPT/"%B64_ZIP_DATA%"/$(zip -9 -j - "$BINARY" | base64)}"
     INSTALL_SCRIPT="${INSTALL_SCRIPT/"%NATIVE_MANIFEST%"/$NATIVE_MANIFEST}"
+    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%FF_EXT_ID%"/$FF_EXT_ID}"
+    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%CHROME_EXT_ID%"/$CHROME_EXT_ID}"
 
     cat <<< "$INSTALL_SCRIPT" > "$OUT_DIR/install-$TARGET.ps1"
 }
@@ -53,9 +58,7 @@ while [ \$# -ne 0 ]; do
             SERVER_BINARY_PATH="$USER_SERVER_BINARY_PATH"
         ;;
         --system)
-            UID=\$(id -u)
-
-            if [ \$UID -ne 0 ]; then
+            if [ \$(id -u) -ne 0 ]; then
                 echo "Error: needs to be run as root when using \\\`--system'." >&2
                 exit 1
             fi
@@ -105,18 +108,21 @@ done
 
 TMPDIR=\$(mktemp -d)
 
-trap 'rm -f "\$TMPDIR/notify-server" "\$TMPDIR/native-manifest.json"; rmdir "\$TMPDIR"' EXIT
+trap 'rm -f "\$TMPDIR"/notify-server "\$TMPDIR"/*.json "\$TMPDIR"/*.json.in; rmdir "\$TMPDIR"' EXIT
 
 tail -n +\$(sed -n "/^BEGIN_BASE64_ENCODED_DATA/{ n; =; }" "\$0") "\$0" | base64 -d | gzip -d > "\$TMPDIR/notify-server"
 
-cat <<EOF > "\$TMPDIR/native-manifest.json"
+cat <<EOF > "\$TMPDIR/native-manifest.json.in"
 $(sed "s:%SERVER_BINARY_PATH%:\$SERVER_BINARY_PATH:" < "$REPO_ROOT/native/native-manifest.json.in")
 EOF
 
-[ -n "\${FIREFOX:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROME:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.json" "\$NATIVE_MANIFEST_DIR_CHROME/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROME_FOR_TESTING:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.json" "\$NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROMIUM:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.json" "\$NATIVE_MANIFEST_DIR_CHROMIUM/$NATIVE_MANIFEST_NAME"
+sed "s;%ALLOWED%;\"allowed_extensions\": [\"$FF_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.firefox.json"
+sed "s;%ALLOWED%;\"allowed_origins\": [\"$CHROME_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.chrome.json"
+
+[ -n "\${FIREFOX:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.firefox.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROME:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROME_FOR_TESTING:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROMIUM:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROMIUM/$NATIVE_MANIFEST_NAME"
 
 install -D -m755 "\$TMPDIR/notify-server" "\$SERVER_BINARY_PATH"
 

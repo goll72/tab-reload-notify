@@ -54,6 +54,11 @@ $registryKeys = @{
     'chrome' = 'SOFTWARE\Google\Chrome\NativeMessagingHosts'
 }
 
+$allowedExtensions = @{
+    'firefox' = '"allowed_extensions": ["%FF_EXT_ID%"]'
+    'chrome' = '"allowed_origins": ["%CHROME_EXT_ID"]'
+}
+
 # Install the server binary and native manifest
 Expand-ServerBinary
 
@@ -63,16 +68,16 @@ if ($system) {
     $nativeInstallPath = "$env:LOCALAPPDATA\tab-reload-notify"
 }
 
-New-Item -Path $nativeInstallPath -Type Directory
-
 Copy-Item -Path $env:TMP\notify-server\notify-server.exe -Destination $nativeInstallPath\notify-server.exe
-$nativeManifest | Out-File -FilePath $nativeInstallPath\native-manifest.json
+New-Item -Path $nativeInstallPath -Type Directory
 
 # For each browser, add the native manifest info to the registry
 foreach ($browser in $browsers) {
+    $nativeManifest -replace '%ALLOWED%', $allowedExtensions[$browser] | Out-File -FilePath $nativeInstallPath\native-manifest.$browser.json
+    
     if ($system) {
-        New-Item -Path HKLM:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeManifest\native-manifest.json
+        New-Item -Path HKLM:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeManifest\native-manifest.$browser.json
     } else {
-        New-Item -Path HKCU:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeInstallPath\native-manifest.json
+        New-Item -Path HKCU:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeInstallPath\native-manifest.$browser.json
     }
 }

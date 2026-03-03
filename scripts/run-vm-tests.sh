@@ -151,7 +151,7 @@ doas mount -t cifs //10.0.2.4/qemu /mnt
 
 cd /mnt
 
-./install-$ARCH-unknown-linux-musl.sh
+doas ./install-$ARCH-unknown-linux-musl.sh --system
 cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
