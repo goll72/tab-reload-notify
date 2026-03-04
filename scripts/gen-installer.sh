@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates installer scripts for the extension's native component.
+# Generates install scripts for the extension's native component.
 #
 # To run this script, you will need to install the targets listed in
 # `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,
@@ -236,12 +236,25 @@ EOF
     esac
 }
 
-if [ -n "$1" ]; then
-    
-    cat <<EOF >&2
+while [ $# -ne 0 ]; do
+    case "$1" in
+        --current-target-only)
+            CURRENT_TARGET_ONLY=1
+        ;;
+        *)
+            cat <<EOF >&2
 Usage: $(basename "$0")
 
-Generates installer scripts for the extension's native component.
+Generates install scripts for the extension's native component.
+
+    -h, --help
+        Show this help menu
+
+    --current-target-only
+        Build the native component and generate the install script
+        for the current target only
+
+        (removes the dependency on \`zig' and \`cargo-zigbuild')
 
 Environment Variables
 
@@ -270,7 +283,17 @@ Environment Variables
     building the native component and install scripts for some targets.
 EOF
 
-    exit 1
+            [ "$1" = "-h" ] || [ "$1" = "--help" ]
+            exit $?
+        ;;
+    esac
+
+    shift 1
+done
+
+if [ -n "$CURRENT_TARGET_ONLY" ]; then
+    gen_installer "$(rustc -vV | sed -n "s/host: //p")" -- build
+    exit
 fi
 
 for target in $ZIG_TARGETS; do
