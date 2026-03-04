@@ -3,58 +3,98 @@ import test from "node:test";
 import assert from "node:assert";
 import fs from "node:fs/promises";
 import process from "node:process";
+import crypto from "node:crypto";
 
-import type { Browser, Page } from "puppeteer";
-import puppeteer, { ProtocolError } from "puppeteer";
+import type { Browser, ElementHandle, Page } from "puppeteer";
+import puppeteer from "puppeteer";
 
 import type { FileHierarchy } from "./hierarchy.ts";
 import { dir, file, makeHierarchy } from "./hierarchy.ts";
 
+import type { Options, OptionsFormElement } from "./extension/types.d.ts";
+import { DEFAULT_OPTIONS } from "./extension/common.ts";
+
+process.loadEnvFile();
+
+let browser: Browser;
+let optionsPage: Page;
+
+const EXT_PATH = path.resolve(process.env.EXT_PATH ?? "..");
+const BROWSER_NAME = process.env.BROWSER ?? "firefox";
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const browser = await (async () => {
-    const EXT_PATH = path.resolve(process.env.EXT_PATH ?? "..");
-    const BROWSER_NAME = process.env.BROWSER ?? "firefox";
+switch (BROWSER_NAME) {
+    case "firefox": {
+        const extUUID = crypto.randomUUID();
 
-    let browser: Browser;
+        browser = await puppeteer.launch({
+            browser: "firefox",
+            dumpio: true,
+            extraPrefsFirefox: {
+                "devtools.console.stdout.content": true,
+                // "devtools.console.stdout.chrome": true,
+                "extensions.webextensions.uuids": JSON.stringify({
+                    [process.env.FF_EXT_ID as string]: extUUID,
+                }),
+            },
+            enableExtensions: true,
+        });
 
-    switch (BROWSER_NAME) {
-        case "firefox":
-            browser = await puppeteer.launch({
-                browser: "firefox",
-                dumpio: true,
-                extraPrefsFirefox: {
-                    "devtools.console.stdout.content": true,
-                    "devtools.console.stdout.chrome": true,
-                },
-                enableExtensions: true,
-            });
+        // Firefox expects a zip file
+        await browser.installExtension(path.join(EXT_PATH, "extension.zip"));
 
-            // Firefox expects a zip file
-            browser.installExtension(path.join(EXT_PATH, "extension.zip"));
+        optionsPage = await browser.newPage();
 
-            return browser;
+        // XXX: using `await` here blocks for some reason, so sleep instead
+        optionsPage.goto(`moz-extension://${extUUID}/options.html`);
+        await sleep(3000);
 
-        case "chrome":
-            browser = await puppeteer.launch({
-                browser: "chrome",
-                pipe: true,
-                dumpio: true,
-                enableExtensions: true,
-                args: ["--enable-unsafe-extension-debugging"],
-            });
-
-            // Chrome expects a directory
-            browser.installExtension(path.join(EXT_PATH, "extension"));
-
-            return browser;
-
-        default:
-            throw new Error(
-                "Invalid argument: specify a valid browser (either `firefox` or `chrome`) as argument",
-            );
+        break;
     }
-})();
+
+    case "chrome": {
+        browser = await puppeteer.launch({
+            browser: "chrome",
+            pipe: true,
+            dumpio: true,
+            enableExtensions: true,
+            args: ["--enable-unsafe-extension-debugging"],
+        });
+
+        // Chrome expects a directory
+        await browser.installExtension(path.join(EXT_PATH, "extension"));
+
+        optionsPage = await browser.newPage();
+        await optionsPage.goto(
+            `chrome-extension://${process.env.CHROME_EXT_ID as string}/options.html`,
+        );
+
+        break;
+    }
+
+    default:
+        throw new Error(
+            "Invalid argument: specify a valid browser (either `firefox` or `chrome`) as argument",
+        );
+}
+
+const setOptions = async (options: Options) => {
+    const form = (await optionsPage.$(
+        "form",
+    )) as ElementHandle<OptionsFormElement>;
+
+    const getOptions = async () => options;
+    await optionsPage.exposeFunction("getOptions", getOptions);
+
+    await form.evaluate(async () => {
+        const options = await getOptions();
+        await (browser as any).storage.local.set(options);
+    });
+
+    await optionsPage.removeExposedFunction("getOptions");
+    await form.dispose();
+};
 
 // Wrapper for test functions that creates a new page, creates a file hierarchy following
 // `hierarchy`, and then runs the function with the test logic that was passed in.
@@ -106,7 +146,7 @@ const withPage = (
         await inner(page, () => loadCount, abs);
         process.chdir(owd);
 
-        page.close();
+        await page.close();
 
         await fs.rm(dir, { recursive: true, force: true });
     };
@@ -117,18 +157,18 @@ await test(
     withPage(file("non-existent"), async (page, loadCount, abs) => {
         await fs.rm("non-existent").catch(() => Promise.resolve());
 
-        await sleep(300);
+        await sleep(400);
         await page.goto(`file://${abs("non-existent")}`).then(
             _ => Promise.reject(),
             _ => Promise.resolve(),
         );
 
-        await sleep(500);
+        await sleep(400);
         const prevCount = loadCount();
 
         await fs.writeFile("non-existent", "A");
 
-        await sleep(300);
+        await sleep(400);
         assert.strictEqual(loadCount(), prevCount + 1);
     }),
 );
@@ -138,25 +178,112 @@ await test(
     withPage(file("ok"), async (page, loadCount, abs) => {
         await fs.writeFile("ok", "A");
 
-        await sleep(300);
+        await sleep(400);
         await page.goto(`file://${abs("ok")}`);
 
-        await sleep(500);
+        await sleep(400);
         const prevCount = loadCount();
 
         await fs.appendFile("ok", "B");
 
-        await sleep(300);
+        await sleep(400);
         assert.strictEqual(loadCount(), prevCount + 1);
     }),
 );
 
 await test(
     " directory gets reloaded on internal child rename ",
+    withPage(dir("a", [file("b"), dir("c")]), async (page, loadCount, abs) => {
+        await page.goto(`file://${abs("a")}`);
+
+        await sleep(400);
+        const prevCount = loadCount();
+
+        await fs.rename("a/b", "a/d");
+
+        await sleep(400);
+        assert.strictEqual(loadCount(), prevCount + 1);
+    }),
+);
+
+await test(
+    " directory gets reloaded on external child rename ",
     withPage(
-        dir("a", [file("b"), dir("c")]),
-        async (page, loadCount, abs) => {},
+        dir("a", [dir("b", [file("c")])]),
+        async (page, loadCount, abs) => {
+            await page.goto(`file://${abs("a/b")}`);
+
+            await sleep(400);
+            const prevCount = loadCount();
+
+            await fs.rename("a/b/c", "a/d");
+
+            await sleep(400);
+            assert.strictEqual(loadCount(), prevCount + 1);
+        },
     ),
 );
 
+await test(
+    " removed file does NOT get reloaded (when config option is NOT set) ",
+    withPage(dir("a", [file("b")]), async (page, loadCount, abs) => {
+        await page.goto(`file://${abs("a/b")}`);
+
+        await sleep(400);
+        const prevCount = loadCount();
+
+        await fs.rm("a/b");
+
+        await sleep(400);
+        assert.strictEqual(loadCount(), prevCount);
+    }),
+);
+
+await test(
+    " removed file gets reloaded (when config option is set) ",
+    withPage(dir("a", [file("b")]), async (page, loadCount, abs) => {
+        await setOptions({ ...DEFAULT_OPTIONS, reloadRemoved: true });
+
+        await sleep(400);
+        await page.goto(`file://${abs("a/b")}`);
+
+        await sleep(400);
+        const prevCount = loadCount();
+
+        await fs.rm("a/b");
+
+        await sleep(400);
+        assert.strictEqual(loadCount(), prevCount + 1);
+
+        await setOptions(DEFAULT_OPTIONS);
+    }),
+);
+
+await test(
+    " file on blocklist does NOT get reloaded ",
+    withPage(
+        dir("foo", [file("bar"), file("baz"), file("quux")]),
+        async (page, loadCount, abs) => {
+            await setOptions({
+                ...DEFAULT_OPTIONS,
+                regexList: { type: "block", content: ".*/foo/bar\n" },
+            });
+
+            await sleep(400);
+            await page.goto(`file://${abs("foo/bar")}`);
+
+            await sleep(400);
+            const prevCount = loadCount();
+
+            await fs.appendFile("foo/bar", "A");
+
+            await sleep(400);
+            assert.strictEqual(loadCount(), prevCount);
+
+            await setOptions(DEFAULT_OPTIONS);
+        },
+    ),
+);
+
+await optionsPage.close();
 await browser.close();
