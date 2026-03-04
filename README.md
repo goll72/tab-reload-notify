@@ -13,18 +13,43 @@ when their content changes, by using file watch primitives. The Rust crate
 
 ## Building
 
-To build the extension, you will need `npm`, `make`, `jq`, `rsvg-convert` and
-a nightly Rust toolchain. After having installed the dependencies, run:
+To build the extension, you will need `npm`, `make`, `jq`, `rsvg-convert`
+and a nightly Rust toolchain. After having installed the dependencies,
+run the following command to build the extension, using `web-ext`.
 
 ```sh
-make build install run
+make build
 ```
 
-That command will build the extension and the file watch server, then install
-the server binary and native messaging manifest to your local, per-user Firefox
-directory and run a new Firefox debugging session with the extension enabled.
+To build and install the native component, run:
+
+```sh
+./scripts/gen-installer.sh --current-target-only
+./scripts/output/installers/install-$(rustc -vV | sed "s/host: //p").sh
+```
+
+Check out the help text and header for each script to find out about
+additional dependencies that may be required, as well as configuration
+options that may be provided.
 
 ## Development and Testing
 
-For development and testing, you will also need to install the dependencies
-outlined in `scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`.
+Install all the dependencies outlined in `scripts/gen-installer.sh` and
+`scripts/run-vm-tests.sh`. Then, you may run `./scripts/gen-installer.sh`
+to generate install scripts for all supported targets.
+
+Then, run `./scripts/run-vm-tests.sh --download` to download VM images
+and follow the instructions to set up the virtual machines for testing
+the extension.
+
+> [!NOTE]
+>
+> You can also run the tests natively:
+>
+> ```sh
+> cd tests
+> npm install
+> npx puppeteer browsers install firefox
+> BROWSER=firefox EXT_PATH=../web-ext-artifacts node main.ts
+> BROWSER=chrome EXT_PATH=../web-ext-artifacts node main.ts
+> ```

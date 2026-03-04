@@ -61,19 +61,24 @@ install_or_uninstall() {
 }
 
 $(
-    if [[ "$TARGET" =~ .*-freebsd ]]; then
-        cat <<EOF
+    case "$TARGET" in
+        *-freebsd)
+            cat <<EOF
 : "\${PREFIX:=/usr/local}"
 FIREFOX_PREFIX=/usr/local/lib
 EOF
-    else
-        cat <<EOF
+        ;;
+        *-apple-*)
+        ;;
+        *)
+            cat <<EOF
 : "\${PREFIX:=/usr}"
 
-[ -d /usr/lib ] && FIREFOX_PREFIX=/usr/lib
-[ -d /usr/lib64 ] && FIREFOX_PREFIX=/usr/lib64
+FIREFOX_PREFIX=/usr/lib
+[ -n "\$LIB64" ] || [ -d "\$DESTDIR/usr/lib64" ] && FIREFOX_PREFIX=/usr/lib64
 EOF
-    fi
+        ;;
+    esac
 )
 
 while [ \$# -ne 0 ]; do
@@ -135,6 +140,25 @@ Environment Variables
         (\\\`--system' only) Set the installation prefix.
 
         Current value: PREFIX="\$PREFIX"
+$(
+    case "$TARGET" in
+        *-freebsd)
+        ;;
+        *-apple-*)
+        ;;
+        *)
+            cat <<EOF
+
+    LIB64 
+        (Linux targets only) Force the Firefox prefix path used
+        for native manifest installation to be \\\`/usr/lib64',
+        skipping auto-detection logic.
+
+        Current value: \${LIB64+LIB64=}\${LIB64-"(LIB64 is unset)"}
+EOF
+        ;;
+    esac
+)
 EOF
 
             [ "\$1" = "-h" ] || [ "\$1" = "--help" ]

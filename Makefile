@@ -5,11 +5,12 @@ VERSION != jq --raw-output ".version" < src/manifest.json
 SRC := src/main.ts src/common.ts src/options.ts
 JS := $(SRC:%.ts=%.js)
 
+EXTENSION_DIR := web-ext-artifacts/extension
 EXTENSION_ZIP := web-ext-artifacts/tab-reload-notify-$(VERSION).zip 
 
 ICONS = src/icon16.png src/icon32.png src/icon48.png src/icon64.png src/icon128.png
 
-build: $(EXTENSION_ZIP)
+build: $(EXTENSION_ZIP) $(EXTENSION_DIR)
 
 lint:
 	npx web-ext lint -s src -i '*.ts' -i '*.svg'
@@ -32,5 +33,9 @@ src/icon%.png: src/icon.svg
 
 $(EXTENSION_ZIP): $(JS) src/browser-polyfill.js src/options.html $(ICONS) src/manifest.json
 	npx web-ext build --overwrite-dest -s src -i '*.ts' -i '*.svg'
+
+$(EXTENSION_DIR): $(EXTENSION_ZIP)
+	unzip -o -d $@ $?
+	touch -m $@
 
 .PHONY: build lint run install
