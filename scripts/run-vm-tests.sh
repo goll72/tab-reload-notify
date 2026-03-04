@@ -112,6 +112,7 @@ EOF
 
                 if ! [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ]; then
                     cat <<EOF
+
 Access VM by running \`telnet localhost 6660' in a separate terminal window.
 Log in as \`root'.
 
@@ -156,9 +157,8 @@ cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
 
-npm install
-
 export PUPPETEER_SKIP_DOWNLOAD=1
+npm install
 
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/firefox BROWSER=firefox node main.ts
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser BROWSER=chrome node main.ts
@@ -173,16 +173,32 @@ EOF
 
                 quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
 
+                sleep 2
+
+                SMB_CONF=$(ls -t /tmp/qemu-smb.*/smb.conf | head -n 1)
+
+                # `mount_smbfs` doesn't support SMBv2, which is used by default by `smbd`
+                sed < "$SMB_CONF" > "$SMB_CONF.new" "2i client min protocol = NT1\\
+server min protocol = NT1\\
+ntlm auth = ntlmv1-permitted"
+
+                mv "$SMB_CONF.new" "$SMB_CONF"
+
                 if ! [ -f "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over" ]; then
                     cat <<EOF
+
 Access VM by running \`telnet localhost 6660' in a separate terminal window.
 Log in as \`root'.
 
 Run:
 
 \`\`\`
-pw useradd -n trn -G wheel 
-pkg add node25 npm-node25
+pw useradd -n trn -G wheel -b /home -m
+passwd trn
+ 
+pkg install doas node25 npm-node25 firefox
+
+echo "permit persist :wheel" >> /usr/local/etc/doas.conf
 
 exit
 \`\`\`
@@ -194,6 +210,7 @@ EOF
                 fi
 
                 cat <<EOF
+
 Access VM by running \`telnet localhost 6660' in a separate terminal window.
 Log in as \`trn'.
 
@@ -203,7 +220,7 @@ Run:
 rm -R /tmp/trn
 mkdir -p /tmp/trn
 
-sudo mount_smbfs //10.0.2.4/qemu /mnt
+doas mount_smbfs -I 10.0.2.4 //10.0.2.4/qemu /mnt
 
 cd /mnt
 
@@ -212,11 +229,10 @@ cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests
 
+export PUPPETEER_SKIP_DOWNLOAD=1
 npm install
-npx puppeteer browsers install firefox
 
-BROWSER=firefox node main.ts
-BROWSER=chrome node main.ts
+PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/firefox BROWSER=firefox node main.ts
 \`\`\`
 EOF
             ;;

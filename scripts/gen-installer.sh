@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Generates installer scripts for the extension's native component.
 #
-# To run this script, you will need to install all of the targets listed in
-# `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,`cargo-xwin`,
-# a macOS Xcode SDK, `zip`, `gzip` and `base64`.
+# To run this script, you will need to install the targets listed in
+# `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,
+# `cargo-xwin`, a macOS Xcode SDK, `zip`, `gzip` and `base64`.
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -47,6 +47,35 @@ if [ \$# -eq 0 ]; then
     set -- --user
 fi
 
+install_or_uninstall() {
+    MODE=\$1
+    SRC=\$2
+    DEST=\$3
+    
+    if [ -n "\$UNINSTALL" ]; then
+        rm -f "\$DEST"
+    else
+        mkdir -p "\$(dirname "\$DEST")"
+        install -m "\$MODE" "\$SRC" "\$DESTDIR\$DEST"
+    fi
+}
+
+$(
+    if [[ "$TARGET" =~ .*-freebsd ]]; then
+        cat <<EOF
+: "\${PREFIX:=/usr/local}"
+FIREFOX_PREFIX=/usr/local/lib
+EOF
+    else
+        cat <<EOF
+: "\${PREFIX:=/usr}"
+
+[ -d /usr/lib ] && FIREFOX_PREFIX=/usr/lib
+[ -d /usr/lib64 ] && FIREFOX_PREFIX=/usr/lib64
+EOF
+    fi
+)
+
 while [ \$# -ne 0 ]; do
     case "\$1" in
         --user)
@@ -70,32 +99,42 @@ while [ \$# -ne 0 ]; do
             
             SERVER_BINARY_PATH="$SYSTEM_SERVER_BINARY_PATH"
         ;;
+        --uninstall)
+            UNINSTALL=1
+        ;;
         *)
             cat <<EOF >&2
-Usage: \$(basename "\$0") [ -h | --help | --user | --system ]
+Usage: \$(basename "\$0") [ -h | --help ] [ --user | --system ] [ --uninstall ]
 
 $BANNER
 
     -h, --help
         Show this help menu
     --user (default)
-        Install for the current user profile only
+        Perform the operation for the current user profile only
     --system
-        Install system-wide (needs to be run as root)
+        Perform the operation system-wide (needs to be run as root)
+    --uninstall
+        Rather than installing the component (default), uninstall it
 
 Environment Variables
 
-    By default, the native component will be installed for all supported
-    browsers. If you want to install it only for some browsers, set the
-    corresponding variable for each browser upon running the script, e.g.
+    FIREFOX, CHROME, CHROME_FOR_TESTING, CHROMIUM
+        By default, the native component will be installed for all supported
+        browsers. If you want to install it only for some browsers, set the
+        corresponding variable for each browser upon running the script, e.g.
 
-        \\\`FIREFOX=1 \$(basename "\$0")'
+            \\\`FIREFOX=1 \$(basename "\$0")'
 
-    Supported browsers:
-        FIREFOX
-        CHROME
-        CHROME_FOR_TESTING
-        CHROMIUM 
+    DESTDIR
+        (\\\`--system' only) Used for staged installs.
+
+        Current value: DESTDIR="\$DESTDIR"
+
+    PREFIX
+        (\\\`--system' only) Set the installation prefix.
+
+        Current value: PREFIX="\$PREFIX"
 EOF
 
             [ "\$1" = "-h" ] || [ "\$1" = "--help" ]
@@ -119,12 +158,12 @@ EOF
 sed "s;%ALLOWED%;\"allowed_extensions\": [\"$FF_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.firefox.json"
 sed "s;%ALLOWED%;\"allowed_origins\": [\"$CHROME_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.chrome.json"
 
-[ -n "\${FIREFOX:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.firefox.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROME:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROME_FOR_TESTING:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING/$NATIVE_MANIFEST_NAME"
-[ -n "\${CHROMIUM:-\$ALL}" ] && install -D -m644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROMIUM/$NATIVE_MANIFEST_NAME"
+[ -n "\${FIREFOX:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.firefox.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROME:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROME_FOR_TESTING:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME_FOR_TESTING/$NATIVE_MANIFEST_NAME"
+[ -n "\${CHROMIUM:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROMIUM/$NATIVE_MANIFEST_NAME"
 
-install -D -m755 "\$TMPDIR/notify-server" "\$SERVER_BINARY_PATH"
+install_or_uninstall 755 "\$TMPDIR/notify-server" "\$SERVER_BINARY_PATH"
 
 exit
 
@@ -187,22 +226,48 @@ EOF
             SYSTEM_CHROME_FOR_TESTING_PLACEHOLDER="opt/chrome_for_testing" \
             SYSTEM_CHROMIUM_PLACEHOLDER="chromium" \
             USER_NATIVE_MANIFEST_DIR_FF="\$HOME/.mozilla/native-messaging-hosts" \
-            SYSTEM_NATIVE_MANIFEST_DIR_FF="/usr/lib/mozilla/native-messaging-hosts" \
+            SYSTEM_NATIVE_MANIFEST_DIR_FF="\$FIREFOX_PREFIX/mozilla/native-messaging-hosts" \
             USER_NATIVE_MANIFEST_DIR_CHROME="\${XDG_CONFIG_HOME:-\$HOME/.config}/%CHROME%/NativeMessagingHosts" \
             SYSTEM_NATIVE_MANIFEST_DIR_CHROME="/etc/%CHROME%/native-messaging-hosts" \
             USER_SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server" \
-            # XXX: maybe this should be changed to `/usr/local`?
-            SYSTEM_SERVER_BINARY_PATH="/usr/libexec/tab-reload-notify/notify-server" \
+            SYSTEM_SERVER_BINARY_PATH="\$PREFIX/libexec/tab-reload-notify/notify-server" \
                 gen_installer_nix
         ;;
     esac
 }
 
 if [ -n "$1" ]; then
+    
     cat <<EOF >&2
 Usage: $(basename "$0")
 
 Generates installer scripts for the extension's native component.
+
+Environment Variables
+
+    MACOS_SDKROOT
+        Path to the macOS Xcode SDK root, passed to \`cargo-zigbuild'
+        when building the native component for *-apple-darwin targets.
+
+        Current value:
+            MACOS_SDKROOT="${MACOS_SDKROOT}"
+
+    ZIG_TARGETS, ZIG_XCODE_TARGETS
+        Targets for which the native component will be built using
+        \`zig' and \`cargo-zigbuild'.
+
+        Current value:
+            ZIG_TARGETS="$(echo "$ZIG_TARGETS" | tr '\n\t'   '  ' | tr -s ' ')"
+            ZIG_XCODE_TARGETS="$ZIG_XCODE_TARGETS"
+
+    XWIN_TARGETS
+        Targets that will be built using \`cargo-xwin'.
+
+        Current value
+            XWIN_TARGETS="$XWIN_TARGETS"
+
+    The target variables may be overridden or set to empty strings to skip
+    building the native component and install scripts for some targets.
 EOF
 
     exit 1

@@ -18,5 +18,3 @@ ZIG_TARGETS="
 ZIG_XCODE_TARGETS="x86_64-apple-darwin aarch64-apple-darwin"
 
 XWIN_TARGETS="x86_64-pc-windows-msvc aarch64-pc-windows-msvc"
-
-ALL_TARGETS="$ZIG_TARGETS $ZIG_XCODE_TARGETS $XWIN_TARGETS"

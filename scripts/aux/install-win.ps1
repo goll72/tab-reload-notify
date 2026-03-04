@@ -10,15 +10,19 @@
 
 [CmdletBinding(DefaultParameterSetName="user")]
 param (
-    # Install for the current user profile only
+    # Perform the operation for the current user profile only
     [parameter(ParameterSetName="user")]
     [switch]
     $user,
 
-    # Install system-wide (needs elevated privileges)
+    # Perform the operation system-wide (needs elevated privileges)
     [parameter(ParameterSetName="system")]
     [switch]
     $system,
+
+    # Rather than installing the native component (default), uninstall it
+    [switch]
+    $uninstall,
 
     # Browsers to register the native manifest to. All supported browsers by default.
     [ValidateSet('firefox', 'chrome')]
@@ -60,7 +64,9 @@ $allowedExtensions = @{
 }
 
 # Install the server binary and native manifest
-Expand-ServerBinary
+if (!$uninstall) {
+    Expand-ServerBinary
+}
 
 if ($system) {
     $nativeInstallPath = "$env:PROGRAMFILES\tab-reload-notify"
@@ -68,16 +74,26 @@ if ($system) {
     $nativeInstallPath = "$env:LOCALAPPDATA\tab-reload-notify"
 }
 
-Copy-Item -Path $env:TMP\notify-server\notify-server.exe -Destination $nativeInstallPath\notify-server.exe
-New-Item -Path $nativeInstallPath -Type Directory
+if ($uninstall) {
+    Remove-Item -Path $nativeInstallPath\notify-server.exe
+} else {
+    New-Item -Path $nativeInstallPath -Type Directory
+    Copy-Item -Path $env:TMP\notify-server\notify-server.exe -Destination $nativeInstallPath\notify-server.exe
+}
 
-# For each browser, add the native manifest info to the registry
+# For each browser, add/remove the native manifest info to/from the registry
 foreach ($browser in $browsers) {
-    $nativeManifest -replace '%ALLOWED%', $allowedExtensions[$browser] | Out-File -FilePath $nativeInstallPath\native-manifest.$browser.json
-    
     if ($system) {
-        New-Item -Path HKLM:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeManifest\native-manifest.$browser.json
+        $regPath = "HKLM:\$($registryKeys[$browser])\tab_reload_notify_server"
     } else {
-        New-Item -Path HKCU:\$registryKeys[$browser]\tab_reload_notify_server -Value $nativeInstallPath\native-manifest.$browser.json
+        $regPath = "HKCU:\$($registryKeys[$browser])\tab_reload_notify_server"
+    }
+
+    if ($uninstall) {
+        Remove-Item -Path $regPath
+        Remove-Item -Path $nativeInstallPath\native-manifest.$browser.json
+    } else {
+        New-Item -Path $regPath -Value $nativeInstallPath\native-manifest.$browser.json
+        $nativeManifest -replace '%ALLOWED%', $allowedExtensions[$browser] | Out-File -FilePath $nativeInstallPath\native-manifest.$browser.json
     }
 }
