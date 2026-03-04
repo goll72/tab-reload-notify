@@ -91,14 +91,10 @@ EOF
     ;;
     --run)
         mkdir -p "$SHARED_DIR"
-        cp "$INST_OUT_DIR"/* "$SHARED_DIR"
 
         [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
 
-        # Firefox expects a zip file, while Chrome expects the unpacked extension directory
-        cp "$REPO_ROOT/web-ext-artifacts/tab-reload-notify-$VERSION.zip" "$SHARED_DIR/extension.zip"
-        unzip -o -d "$SHARED_DIR/extension" "$SHARED_DIR/extension.zip"
-
+        cp -R "$REPO_ROOT"/web-ext-artifacts/* "$INST_OUT_DIR"/* "$SHARED_DIR"
         rsync -rL --exclude="node_modules/*" --exclude=package-lock.json "$REPO_ROOT/tests/" "$SHARED_DIR/tests"
 
         case "$2" in

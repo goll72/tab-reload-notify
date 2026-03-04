@@ -13,9 +13,9 @@ when their content changes, by using file watch primitives. The Rust crate
 
 ## Building
 
-To build the extension, you will need `npm`, `make`, `jq`, `rsvg-convert`
-and a nightly Rust toolchain. After having installed the dependencies,
-run the following command to build the extension, using `web-ext`.
+To build the extension, you will need `npm`, `make`, `rsvg-convert` and
+a nightly Rust toolchain. After having installed the dependencies, run
+the following command to build the extension, using `web-ext`.
 
 ```sh
 make build

@@ -1,12 +1,10 @@
 .POSIX:
 
-VERSION != jq --raw-output ".version" < src/manifest.json
-
 SRC := src/main.ts src/common.ts src/options.ts
 JS := $(SRC:%.ts=%.js)
 
 EXTENSION_DIR := web-ext-artifacts/extension
-EXTENSION_ZIP := web-ext-artifacts/tab-reload-notify-$(VERSION).zip 
+EXTENSION_ZIP := web-ext-artifacts/extension.zip
 
 ICONS = src/icon16.png src/icon32.png src/icon48.png src/icon64.png src/icon128.png
 
@@ -32,7 +30,7 @@ src/icon%.png: src/icon.svg
 	rsvg-convert --width=$* --height=$* --keep-aspect-ratio $? > $@ 
 
 $(EXTENSION_ZIP): $(JS) src/browser-polyfill.js src/options.html $(ICONS) src/manifest.json
-	npx web-ext build --overwrite-dest -s src -i '*.ts' -i '*.svg'
+	npx web-ext build --overwrite-dest -s src -i '*.ts' -i '*.svg' -n `basename $(EXTENSION_ZIP)`
 
 $(EXTENSION_DIR): $(EXTENSION_ZIP)
 	unzip -o -d $@ $?
