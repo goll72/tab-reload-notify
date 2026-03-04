@@ -15,6 +15,8 @@ const notifyServer = browser.runtime.connectNative(
 let options: Options = DEFAULT_OPTIONS;
 let regex: RegExp | undefined;
 
+// TODO: unregister watches when tabs are closed
+// TODO: register watches for tabs that were already open before the extension was enabled
 browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
     if (!changeInfo.url) {
         return;
@@ -133,6 +135,8 @@ notifyServer.onMessage.addListener(async event => {
 });
 
 async function loadOptions() {
+    console.log("Loading options...");
+
     const prevReloadRemoved = options.reloadRemoved;
 
     browser.storage.local.get(DEFAULT_OPTIONS).then(x => {
