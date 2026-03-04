@@ -16,8 +16,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$INST_OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-FF_EXT_ID="tab_reload_notify@goll.cc"
-CHROME_EXT_ID="chrome-extension://caipeemdlajodnnmkjhbnbfaiomgoplf/"
+. "$REPO_ROOT/.env"
 
 gen_installer_win() {
     NATIVE_MANIFEST=$(< "$REPO_ROOT/native/native-manifest.json.in")
@@ -27,7 +26,7 @@ gen_installer_win() {
     INSTALL_SCRIPT="${INSTALL_SCRIPT/"%B64_ZIP_DATA%"/$(zip -9 -j - "$BINARY" | base64)}"
     INSTALL_SCRIPT="${INSTALL_SCRIPT/"%NATIVE_MANIFEST%"/$NATIVE_MANIFEST}"
     INSTALL_SCRIPT="${INSTALL_SCRIPT/"%FF_EXT_ID%"/$FF_EXT_ID}"
-    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%CHROME_EXT_ID%"/$CHROME_EXT_ID}"
+    INSTALL_SCRIPT="${INSTALL_SCRIPT/"%CHROME_EXT_ID%"/chrome-extension:\/\/$CHROME_EXT_ID\/}"
 
     cat <<< "$INSTALL_SCRIPT" > "$OUT_DIR/install-$TARGET.ps1"
 }
@@ -180,7 +179,7 @@ $(sed "s:%SERVER_BINARY_PATH%:\$SERVER_BINARY_PATH:" < "$REPO_ROOT/native/native
 EOF
 
 sed "s;%ALLOWED%;\"allowed_extensions\": [\"$FF_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.firefox.json"
-sed "s;%ALLOWED%;\"allowed_origins\": [\"$CHROME_EXT_ID\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.chrome.json"
+sed "s;%ALLOWED%;\"allowed_origins\": [\"chrome-extension://$CHROME_EXT_ID/\"];" < "\$TMPDIR/native-manifest.json.in" > "\$TMPDIR/native-manifest.chrome.json"
 
 [ -n "\${FIREFOX:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.firefox.json" "\$NATIVE_MANIFEST_DIR_FIREFOX/$NATIVE_MANIFEST_NAME"
 [ -n "\${CHROME:-\$ALL}" ] && install_or_uninstall 644 "\$TMPDIR/native-manifest.chrome.json" "\$NATIVE_MANIFEST_DIR_CHROME/$NATIVE_MANIFEST_NAME"
