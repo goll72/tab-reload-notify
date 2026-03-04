@@ -1,12 +1,14 @@
+#![feature(read_buf)]
 #![feature(btree_cursors)]
 #![feature(path_is_empty)]
+#![feature(core_io_borrowed_buf)]
 
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Bound;
 
 use std::fmt::Debug;
-use std::io::{Read, Write};
+use std::io::{BorrowedBuf, Read, Write};
 
 use std::path::{Path, PathBuf};
 
@@ -61,20 +63,25 @@ fn ser_json_len_prefixed_stdout<T: Serialize>(x: &T) -> Result<(), JsonIoError> 
     Ok(())
 }
 
-fn de_json_len_prefixed_stdin<T: for<'a> Deserialize<'a>>() -> Result<T, JsonIoError> {
+fn de_json_len_prefixed_stdin<T: for<'a> Deserialize<'a>>() -> Result<Option<T>, JsonIoError> {
     let mut stdin = std::io::stdin();
 
     let len = {
         let mut buf = [0u8; 4];
-        stdin.read_exact(&mut buf)?;
+        let mut borrowed_buf = BorrowedBuf::from(buf.as_mut_slice());
+        let mut cursor = borrowed_buf.unfilled();
 
-        u32::from_ne_bytes(buf) as usize
+        match stdin.read_buf_exact(cursor.reborrow()) {
+            Ok(_) => u32::from_ne_bytes(buf) as usize,
+            Err(_) if cursor.written() == 0 => return Ok(None),
+            Err(inner) => return Err(JsonIoError::Io(inner)),
+        }
     };
 
     let mut buf = vec![0u8; len];
     stdin.read_exact(&mut buf)?;
 
-    Ok(serde_json::de::from_slice(&buf)?)
+    Ok(Some(serde_json::de::from_slice(&buf)?))
 }
 
 // Toggle whether update events are sent when files are removed. Update
@@ -401,10 +408,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         match de_json_len_prefixed_stdin()? {
-            NotifyMessage::Add { file } => {
+            Some(NotifyMessage::Add { file }) => {
                 // Relative paths are not supported
                 if file.is_relative() {
-                    ser_json_len_prefixed_stdout(&NotifyEvent::Error { file: &file })?;
+                    let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Error { file: &file });
 
                     continue;
                 }
@@ -444,7 +451,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .insert(rest.into());
                 }
             }
-            NotifyMessage::Remove { file } => {
+            Some(NotifyMessage::Remove { file }) => {
                 let mut map = dir_watched_children.lock().unwrap();
 
                 if let Some(children) = map.get_mut(&file)
@@ -477,11 +484,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
-            NotifyMessage::Reconfigure { reload_removed } => {
+            Some(NotifyMessage::Reconfigure { reload_removed }) => {
                 if let Some(value) = reload_removed {
                     RELOAD_REMOVED.swap(value, Ordering::Relaxed);
                 }
             }
+            None => break,
         }
     }
+
+    Ok(())
 }
