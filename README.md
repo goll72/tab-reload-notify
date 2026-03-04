@@ -32,6 +32,15 @@ Check out the help text and header for each script to find out about
 additional dependencies that may be required, as well as configuration
 options that may be provided.
 
+You can also run
+
+```sh
+make run
+```
+
+and optionally specify an `ARGS` variable to run a Firefox/Chromium
+session with the extension enabled for debugging.
+
 ## Development and Testing
 
 Install all the dependencies outlined in `scripts/gen-installer.sh` and
