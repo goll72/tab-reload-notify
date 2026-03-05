@@ -16,6 +16,8 @@ mkdir -p "$OUT_DIR"
 
 ARCH=$(uname -m)
 
+: "${SERIAL:=6660}"
+
 # Source: https://unix.stackexchange.com/a/655825
 pnrelpath() {
     set -- "${1%/}/" "${2%/}/" ''               ## '/'-end to avoid mismatch
@@ -42,15 +44,27 @@ case "$1" in
     --download)
         [ -f alpine-v3.23.conf ] || quickget alpine v3.23
         [ -f freebsd-15.0-disc1.conf ] || quickget freebsd 15.0 disc1
+        [ -f netbsd-10.1.conf ] || quickget netbsd 10.1
         [ -f macos-sequoia.conf ] || quickget macos sequoia
         [ -f windows-10.conf ] || quickget windows 10
+
+        sed 's/boot="legacy"//' netbsd-10.1.conf > netbsd-10.1.conf.new
+        mv netbsd-10.1.conf.new netbsd-10.1.conf
 
         cat <<EOF
 The following VM images have been installed to \`$OUT_DIR':
 
     alpine-v3.23.conf         ->   $ARCH-unknown-linux-musl
-    freebsd-15.0-disc1.conf   ->   $ARCH-unknown-freebsd
+    freebsd-15.0-disc1.conf   ->   x86_64-unknown-freebsd
+    netbsd-10.1.conf          ->   x86_64-unknown-netbsd
+        [ NOTE: you will need to switch to the bootloader prompt before the ]
+        [       3s timer runs out and run `consdev com0` and then `boot` if ]
+        [       you want to use a serial interface.                         ]
+
     macos-sequoia.conf        ->   $ARCH-apple-darwin
+        [ NOTE: you may need to reboot and select the recovery disk multiple ]
+        [       times before being able to boot into the installed system.   ]
+
     windows-10.conf           ->   $ARCH-pc-windows-msvc
 
 You will need to run each one of them individually using \`quickemu --vm', go
@@ -97,14 +111,16 @@ EOF
         cp -R "$REPO_ROOT"/web-ext-artifacts/* "$INST_OUT_DIR"/* "$SHARED_DIR"
         rsync -rL --exclude="node_modules/*" --exclude=package-lock.json "$REPO_ROOT/tests/" "$SHARED_DIR/tests"
 
-        case "$2" in
+        TARGET="$2"
+
+        case "$TARGET" in
             "$ARCH-unknown-linux-musl")
-                if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-linux-musl.sh" ]; then
+                if ! [ -f "$INST_OUT_DIR/install-$TARGET.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
                 fi
 
-                quickemu --vm alpine-v3.23.conf --serial telnet --display none --public-dir "$SHARED_DIR"
+                quickemu --vm alpine-v3.23.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --public-dir "$SHARED_DIR"
 
                 if ! [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ]; then
                     cat <<EOF
@@ -161,13 +177,13 @@ PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser BROWSER=chrome node main.ts
 \`\`\`
 EOF
             ;;
-            "$ARCH-unknown-freebsd")
-                if ! [ -f "$INST_OUT_DIR/install-$ARCH-unknown-freebsd.sh" ]; then
+            x86_64-unknown-freebsd)
+                if ! [ -f "$INST_OUT_DIR/install-$TARGET.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
                 fi
 
-                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --display none --public-dir "$SHARED_DIR"
+                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --public-dir "$SHARED_DIR"
 
                 sleep 2
 
@@ -232,13 +248,24 @@ PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/firefox BROWSER=firefox node main.ts
 \`\`\`
 EOF
             ;;
-            "$ARCH-apple-darwin")
-                if ! [ -f "$INST_OUT_DIR/install-$ARCH-apple-darwin.sh" ]; then
+            x86_64-unknown-netbsd)
+                if ! [ -f "$INST_OUT_DIR/install-$TARGET.sh" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
                 fi
 
-                quickemu --vm macos-sequoia.conf --serial telnet --public-dir "$SHARED_DIR"
+                grep -v spice < netbsd-10.1/netbsd-10.1.sh > netbsd-10.1/netbsd-10.1.sh.new
+                mv netbsd-10.1/netbsd-10.1.sh.new netbsd-10.1/netbsd-10.1.sh
+
+                quickemu --vm netbsd-10.1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --spice-port "" --public-dir "$SHARED_DIR"
+            ;;
+            "$ARCH-apple-darwin")
+                if ! [ -f "$INST_OUT_DIR/install-$TARGET.sh" ]; then
+                    echo "You need to run \`gen-installer.sh' first." >&2
+                    exit 1
+                fi
+
+                quickemu --vm macos-sequoia.conf --serial telnet --serial-telnet-port "$SERIAL" --public-dir "$SHARED_DIR"
 
                 cat <<EOF
 Open a terminal window on macOS and run:
@@ -274,7 +301,7 @@ BROWSER=chrome node main.ts
 EOF
             ;;
             "$ARCH-pc-windows-msvc")
-                if ! [ -f "$INST_OUT_DIR/install-$ARCH-pc-windows-msvc.ps1" ]; then
+                if ! [ -f "$INST_OUT_DIR/install-$TARGET.ps1" ]; then
                     echo "You need to run \`gen-installer.sh' first." >&2
                     exit 1
                 fi
@@ -334,7 +361,7 @@ EOF
                 exit 1
             ;;
             *)
-                echo "Unsupported target: $2" >&2
+                echo "Unsupported target: $TARGET" >&2
                 exit 1
             ;;
         esac 
@@ -363,9 +390,17 @@ so they can be used as testbeds for the extension.
 
         Supported targets:
             $ARCH-unknown-linux-musl
-            $ARCH-unknown-freebsd
+            x86_64-unknown-freebsd
+            x86_64-unknown-netbsd
             $ARCH-apple-darwin
             $ARCH-pc-windows-msvc
+
+Environment Variables
+
+    SERIAL
+        Port used for serial interfacing over telnet (not used on Windows guests)
+
+        Current value: SERIAL="$SERIAL"
 EOF
         [ "$1" = "-h" ] || [ "$1" = "--help" ]
         exit $?

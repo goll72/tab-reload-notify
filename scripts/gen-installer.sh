@@ -2,8 +2,9 @@
 # Generates install scripts for the extension's native component.
 #
 # To run this script, you will need to install the targets listed in
-# `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`,
-# `cargo-xwin`, a macOS Xcode SDK, `zip`, `gzip` and `base64`.
+# `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`
+# (from https://github.com/goll72/cargo-zigbuild-netbsd), `cargo-xwin`,
+# a macOS Xcode SDK, `zip`, `gzip` and `base64`.
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -61,13 +62,13 @@ install_or_uninstall() {
 
 $(
     case "$TARGET" in
-        *-freebsd)
+        *-freebsd|*-netbsd)
             cat <<EOF
 : "\${PREFIX:=/usr/local}"
 FIREFOX_PREFIX=/usr/local/lib
 EOF
         ;;
-        *-apple-*)
+        *-apple-darwin)
         ;;
         *)
             cat <<EOF
