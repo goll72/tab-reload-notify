@@ -25,7 +25,7 @@ To build and install the native component, run:
 
 ```sh
 ./scripts/gen-installer.sh --current-target-only
-./scripts/output/installers/install-$(rustc -vV | sed "s/host: //p").sh
+./scripts/output/installers/install-$(rustc -vV | sed -n "s/host: //p").sh
 ```
 
 Check out the help text and header for each script to find out about
