@@ -207,12 +207,13 @@ Run:
 pw useradd -n trn -G wheel -b /home -m
 passwd trn
  
-pkg install doas node25 npm-node25 firefox chromium samba
+pkg install doas node25 npm-node25 firefox chromium samba423
 
 echo "permit persist :wheel" >> /usr/local/etc/doas.conf
 
 exit
 \`\`\`
+
 EOF
                     printf "...> "
                     read -r _
@@ -278,6 +279,7 @@ sed -i -E 's:/( |\t)*ffs( |\t)*rw( |\t):/\tffs\trw,sync,log\t:' /etc/fstab
 
 exit
 \`\`\`
+
 EOF
                     printf "...> "
                     read -r _
@@ -332,14 +334,14 @@ Log in.
 Run:
 
 \`\`\`
-mkdir -p /tmp/trn /tmp/shared
-sudo mount -t smbfs //10.0.2.4/qemu /tmp/shared
+mkdir -p /tmp/trn
 
-cd /tmp/shared
+sudo mount_9p Public-$(echo "$USER" | tr 'A-Z' 'a-z')
+cd /Volumes/Public-$(echo "$USER" | tr 'A-Z' 'a-z')
 
 sudo installer -pkg macos-nodejs.pkg -target /
 
-./install-$ARCH-apple-darwin.sh
+sh ./install-$ARCH-apple-darwin.sh
 cp -R tests extension* /tmp/trn
 
 cd /tmp/trn/tests

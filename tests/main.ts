@@ -38,7 +38,6 @@ switch (BROWSER_NAME) {
             dumpio: true,
             extraPrefsFirefox: {
                 "devtools.console.stdout.content": true,
-                // "devtools.console.stdout.chrome": true,
                 "extensions.webextensions.uuids": JSON.stringify({
                     [process.env.FF_EXT_ID as string]: extUUID,
                 }),
