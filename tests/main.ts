@@ -5,24 +5,29 @@ import fs from "node:fs/promises";
 import process from "node:process";
 import crypto from "node:crypto";
 
-import type { Browser, ElementHandle, Page } from "puppeteer";
+import type { Browser, Page, WebWorker } from "puppeteer";
 import puppeteer from "puppeteer";
 
 import type { FileHierarchy } from "./hierarchy.ts";
 import { dir, file, makeHierarchy } from "./hierarchy.ts";
 
-import type { Options, OptionsFormElement } from "./extension/types.d.ts";
+import type { Options } from "./extension/types.d.ts";
 import { DEFAULT_OPTIONS } from "./extension/common.ts";
 
 process.loadEnvFile();
 
 let browser: Browser;
-let optionsPage: Page;
+let extHandle: Page | WebWorker;
+
+// "Slowness factor", can be adjusted to circumvent race
+// conditions in the test code when running on slow machines
+const F: number = Math.abs(Number(process.env.F)) || 1;
 
 const EXT_PATH = path.resolve(process.env.EXT_PATH ?? "..");
 const BROWSER_NAME = process.env.BROWSER ?? "firefox";
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+    new Promise(resolve => setTimeout(resolve, F * ms));
 
 switch (BROWSER_NAME) {
     case "firefox": {
@@ -44,10 +49,13 @@ switch (BROWSER_NAME) {
         // Firefox expects a zip file
         await browser.installExtension(path.join(EXT_PATH, "extension.zip"));
 
-        optionsPage = await browser.newPage();
+        extHandle = await browser.newPage();
 
         // XXX: using `await` here blocks for some reason, so sleep instead
-        optionsPage.goto(`moz-extension://${extUUID}/options.html`);
+        //
+        // NOTE: we navigate to an extension page because Firefox doesn't seem
+        // to fire a "targetcreated" event when the extension gets loaded
+        extHandle.goto(`moz-extension://${extUUID}/options.html`);
         await sleep(3000);
 
         break;
@@ -65,10 +73,15 @@ switch (BROWSER_NAME) {
         // Chrome expects a directory
         await browser.installExtension(path.join(EXT_PATH, "extension"));
 
-        optionsPage = await browser.newPage();
-        await optionsPage.goto(
-            `chrome-extension://${process.env.CHROME_EXT_ID as string}/options.html`,
-        );
+        const target = await browser
+            .waitForTarget(
+                x =>
+                    x.type() === "service_worker" &&
+                    x.url().startsWith("chrome-extension://"),
+            )
+            .then(x => x.worker());
+
+        extHandle = target as WebWorker;
 
         break;
     }
@@ -80,20 +93,9 @@ switch (BROWSER_NAME) {
 }
 
 const setOptions = async (options: Options) => {
-    const form = (await optionsPage.$(
-        "form",
-    )) as ElementHandle<OptionsFormElement>;
-
-    const getOptions = async () => options;
-    await optionsPage.exposeFunction("getOptions", getOptions);
-
-    await form.evaluate(async () => {
-        const options = await getOptions();
+    await extHandle.evaluate(async options => {
         await (browser as any).storage.local.set(options);
-    });
-
-    await optionsPage.removeExposedFunction("getOptions");
-    await form.dispose();
+    }, options);
 };
 
 // Wrapper for test functions that creates a new page, creates a file hierarchy following
@@ -285,5 +287,5 @@ await test(
     ),
 );
 
-await optionsPage.close();
+await extHandle.close();
 await browser.close();

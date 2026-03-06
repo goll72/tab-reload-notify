@@ -43,9 +43,7 @@ $(sed "s/^/# /" <<< "$BANNER")
 
 set -e
 
-if [ \$# -eq 0 ]; then
-    set -- --user
-fi
+set -- --user "\$@"
 
 install_or_uninstall() {
     MODE=\$1
@@ -236,10 +234,16 @@ EOF
         *)
             case "$TARGET" in
                 *-freebsd)
-                    BSD_PREFIX=/usr/local
+                    PREFIX_FF=/usr/local/lib
+                    PREFIX_CHROME=/usr/local
                 ;;
                 *-netbsd)
-                    BSD_PREFIX=/usr/pkg
+                    PREFIX_FF=/usr/lib
+                    PREFIX_CHROME=/usr/pkg
+                ;;
+                *-linux-*)
+                    PREFIX_FF="\$FIREFOX_LIB_PREFIX"
+                    PREFIX_CHROME=""
                 ;;
             esac
 
@@ -252,9 +256,9 @@ EOF
             SYSTEM_CHROME_FOR_TESTING_PLACEHOLDER="opt/chrome_for_testing" \
             SYSTEM_CHROMIUM_PLACEHOLDER="chromium" \
             USER_NATIVE_MANIFEST_DIR_FF="\$HOME/.mozilla/native-messaging-hosts" \
-            SYSTEM_NATIVE_MANIFEST_DIR_FF="${BSD_PREFIX-\$FIREFOX_LIB_PREFIX}${BSD_PREFIX+/lib}/mozilla/native-messaging-hosts" \
+            SYSTEM_NATIVE_MANIFEST_DIR_FF="$PREFIX_FF/mozilla/native-messaging-hosts" \
             USER_NATIVE_MANIFEST_DIR_CHROME="\${XDG_CONFIG_HOME:-\$HOME/.config}/%CHROME%/NativeMessagingHosts" \
-            SYSTEM_NATIVE_MANIFEST_DIR_CHROME="$BSD_PREFIX/etc/%CHROME%/native-messaging-hosts" \
+            SYSTEM_NATIVE_MANIFEST_DIR_CHROME="$PREFIX_CHROME/etc/%CHROME%/native-messaging-hosts" \
             USER_SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server" \
             SYSTEM_SERVER_BINARY_PATH="\$PREFIX/libexec/tab-reload-notify/notify-server" \
                 gen_installer_nix

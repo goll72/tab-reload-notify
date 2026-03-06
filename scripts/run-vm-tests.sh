@@ -66,6 +66,9 @@ The following VM images have been installed to \`$OUT_DIR':
         [                                                                   ]
         [       If there is no internet connectivity once you boot into the ]
         [       installed system, run \`dhcpcd'.                            ]
+        [                                                                   ]
+        [       For a more pleasant terminal experience, install \`zsh' and  ]
+        [       \`tmux' and set \`zsh' as your login shell.                   ]
 
     macos-sequoia.conf        ->   $ARCH-apple-darwin
         [ NOTE: You may need to reboot and select the recovery disk multiple ]
@@ -111,6 +114,7 @@ EOF
     ;;
     --run)
         mkdir -p "$SHARED_DIR"
+        chmod 777 "$SHARED_DIR"
 
         [ -f "$SHARED_DIR/macos-nodejs.pkg" ] || curl -L "https://nodejs.org/dist/v25.7.0/node-v25.7.0.pkg" -o "$SHARED_DIR/macos-nodejs.pkg"
 
@@ -228,7 +232,7 @@ rm -R /tmp/trn
 mkdir -p /tmp/trn
 
 cd /tmp/trn
-smbclient '\\10.0.2.4\qemu' -N -c 'prompt OFF; recurse ON; mget *'
+smbclient '\\\\10.0.2.4\\qemu' -N -c 'prompt OFF; recurse ON; mget *'
 
 sh ./install-x86_64-unknown-freebsd.sh
 
@@ -270,6 +274,8 @@ pkgin install doas nodejs firefox chromium samba
 echo consdev=com0 >> /boot.cfg
 echo "permit persist :wheel" > /usr/pkg/etc/doas.conf
 
+sed -i -E 's:/( |\t)*ffs( |\t)*rw( |\t):/\tffs\trw,sync,log\t:' /etc/fstab
+
 exit
 \`\`\`
 EOF
@@ -291,7 +297,7 @@ rm -R /tmp/trn
 mkdir -p /tmp/trn
 
 cd /tmp/trn
-smbclient '\\10.0.2.4\qemu' -N -c 'prompt OFF; recurse ON; mget *'
+smbclient '\\\\10.0.2.4\\qemu' -N -c 'prompt OFF; recurse ON; mget *'
 
 sh ./install-x86_64-unknown-netbsd.sh
 
