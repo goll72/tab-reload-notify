@@ -57,12 +57,14 @@ The following VM images have been installed to \`$OUT_DIR':
     alpine-v3.23.conf         ->   $ARCH-unknown-linux-musl
     freebsd-15.0-disc1.conf   ->   x86_64-unknown-freebsd
     netbsd-10.1.conf          ->   x86_64-unknown-netbsd
-        [ NOTE: you will need to switch to the bootloader prompt before the ]
-        [       3s timer runs out and run `consdev com0` and then `boot` if ]
+        [ NOTE: You will need to switch to the bootloader prompt before the ]
+        [       3s timer runs out and run \`consdev com0' and then \`boot' if ]
         [       you want to use a serial interface.                         ]
+        [       In the "Select your distribution" menu, choose              ]
+        [       "Full Installation".                                        ]
 
     macos-sequoia.conf        ->   $ARCH-apple-darwin
-        [ NOTE: you may need to reboot and select the recovery disk multiple ]
+        [ NOTE: You may need to reboot and select the recovery disk multiple ]
         [       times before being able to boot into the installed system.   ]
 
     windows-10.conf           ->   $ARCH-pc-windows-msvc
@@ -120,7 +122,7 @@ EOF
                     exit 1
                 fi
 
-                quickemu --vm alpine-v3.23.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --public-dir "$SHARED_DIR"
+                quickemu --vm alpine-v3.23.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --public-dir "$SHARED_DIR"
 
                 if ! [ -f "$OUT_DIR/alpine-v3.23/first-time-setup.over" ]; then
                     cat <<EOF
@@ -183,18 +185,7 @@ EOF
                     exit 1
                 fi
 
-                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --public-dir "$SHARED_DIR"
-
-                sleep 2
-
-                SMB_CONF=$(ls -t /tmp/qemu-smb.*/smb.conf | head -n 1)
-
-                # `mount_smbfs` doesn't support SMBv2, which is used by default by `smbd`
-                sed < "$SMB_CONF" > "$SMB_CONF.new" "2i client min protocol = NT1\\
-server min protocol = NT1\\
-ntlm auth = ntlmv1-permitted"
-
-                mv "$SMB_CONF.new" "$SMB_CONF"
+                quickemu --vm freebsd-15.0-disc1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --public-dir "$SHARED_DIR"
 
                 if ! [ -f "$OUT_DIR/freebsd-15.0-disc1/first-time-setup.over" ]; then
                     cat <<EOF
@@ -208,7 +199,7 @@ Run:
 pw useradd -n trn -G wheel -b /home -m
 passwd trn
  
-pkg install doas node25 npm-node25 firefox
+pkg install doas node25 npm-node25 firefox chromium samba
 
 echo "permit persist :wheel" >> /usr/local/etc/doas.conf
 
@@ -232,19 +223,18 @@ Run:
 rm -R /tmp/trn
 mkdir -p /tmp/trn
 
-doas mount_smbfs -I 10.0.2.4 //10.0.2.4/qemu /mnt
+cd /tmp/trn
+smbclient '\\10.0.2.4\qemu' -N -c 'prompt OFF; recurse ON; mget *'
 
-cd /mnt
+sh ./install-x86_64-unknown-freebsd.sh
 
-./install-$ARCH-unknown-freebsd.sh
-cp -R tests extension* /tmp/trn
-
-cd /tmp/trn/tests
+cd tests
 
 export PUPPETEER_SKIP_DOWNLOAD=1
 npm install
 
 PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/firefox BROWSER=firefox node main.ts
+PUPPETEER_EXECUTABLE_PATH=/usr/local/bin/chrome BROWSER=chrome node main.ts
 \`\`\`
 EOF
             ;;
@@ -254,10 +244,59 @@ EOF
                     exit 1
                 fi
 
-                grep -v spice < netbsd-10.1/netbsd-10.1.sh > netbsd-10.1/netbsd-10.1.sh.new
-                mv netbsd-10.1/netbsd-10.1.sh.new netbsd-10.1/netbsd-10.1.sh
+                quickemu --vm netbsd-10.1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --public-dir "$SHARED_DIR"
 
-                quickemu --vm netbsd-10.1.conf --serial telnet --serial-telnet-port "$SERIAL" --display none --viewer none --spice-port "" --public-dir "$SHARED_DIR"
+if ! [ -f "$OUT_DIR/netbsd-10.1/first-time-setup.over" ]; then
+                    cat <<EOF
+
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`root'.
+
+Run:
+
+\`\`\`
+useradd -b /home -m -G wheel trn
+passwd trn
+
+export PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/x86_64/10.1/All
+pkg_add pkgin
+
+pkgin install doas nodejs firefox chromium samba
+
+echo consdev=com0 >> /boot.cfg
+echo "permit persist :wheel" > /usr/pkg/etc/doas.conf
+
+exit
+\`\`\`
+EOF
+
+                    touch "$OUT_DIR/netbsd-10.1/first-time-setup.over"
+                fi
+
+                cat <<EOF
+Access VM by running \`telnet localhost 6660' in a separate terminal window.
+Log in as \`trn'.
+
+Run:
+
+\`\`\`
+rm -R /tmp/trn
+mkdir -p /tmp/trn
+
+cd /tmp/trn
+smbclient '\\10.0.2.4\qemu' -N -c 'prompt OFF; recurse ON; mget *'
+
+sh ./install-x86_64-unknown-netbsd.sh
+
+cd tests
+
+export PUPPETEER_SKIP_DOWNLOAD=1
+npm install
+
+PUPPETEER_EXECUTABLE_PATH=/usr/pkg/bin/firefox BROWSER=firefox node main.ts
+PUPPETEER_EXECUTABLE_PATH=/usr/pkg/bin/chromium BROWSER=chrome node main.ts
+\`\`\`
+EOF
             ;;
             "$ARCH-apple-darwin")
                 if ! [ -f "$INST_OUT_DIR/install-$TARGET.sh" ]; then

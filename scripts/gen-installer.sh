@@ -62,10 +62,16 @@ install_or_uninstall() {
 
 $(
     case "$TARGET" in
-        *-freebsd|*-netbsd)
+        *-freebsd)
             cat <<EOF
 : "\${PREFIX:=/usr/local}"
 FIREFOX_PREFIX=/usr/local/lib
+EOF
+        ;;
+        *-netbsd)
+            cat <<EOF
+: "\${PREFIX:=/usr/local}"
+FIREFOX_PREFIX=/usr/pkg/lib
 EOF
         ;;
         *-apple-darwin)
