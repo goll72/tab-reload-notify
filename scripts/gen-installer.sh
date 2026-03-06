@@ -62,26 +62,17 @@ install_or_uninstall() {
 
 $(
     case "$TARGET" in
-        *-freebsd)
+        *-freebsd|*-netbsd)
             cat <<EOF
 : "\${PREFIX:=/usr/local}"
-FIREFOX_PREFIX=/usr/local/lib
 EOF
         ;;
-        *-netbsd)
+        *-linux-*)
             cat <<EOF
 : "\${PREFIX:=/usr/local}"
-FIREFOX_PREFIX=/usr/pkg/lib
-EOF
-        ;;
-        *-apple-darwin)
-        ;;
-        *)
-            cat <<EOF
-: "\${PREFIX:=/usr}"
 
-FIREFOX_PREFIX=/usr/lib
-[ -n "\$LIB64" ] || [ -d "\$DESTDIR/usr/lib64" ] && FIREFOX_PREFIX=/usr/lib64
+FIREFOX_LIB_PREFIX=/usr/lib
+[ -n "\$LIB64" ] || [ -d "\$DESTDIR/usr/lib64" ] && FIREFOX_LIB_PREFIX=/usr/lib64
 EOF
         ;;
     esac
@@ -148,11 +139,7 @@ Environment Variables
         Current value: PREFIX="\$PREFIX"
 $(
     case "$TARGET" in
-        *-freebsd)
-        ;;
-        *-apple-*)
-        ;;
-        *)
+        *-linux-*)
             cat <<EOF
 
     LIB64 
@@ -222,7 +209,7 @@ EOF
 )
 
      
-    case $TARGET in
+    case "$TARGET" in
         *-windows-*)
             BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server.exe"
 
@@ -247,6 +234,15 @@ EOF
                 gen_installer_nix
         ;;
         *)
+            case "$TARGET" in
+                *-freebsd)
+                    BSD_PREFIX=/usr/local
+                ;;
+                *-netbsd)
+                    BSD_PREFIX=/usr/pkg
+                ;;
+            esac
+
             BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
 
             USER_CHROME_PLACEHOLDER="google-chrome" \
@@ -256,9 +252,9 @@ EOF
             SYSTEM_CHROME_FOR_TESTING_PLACEHOLDER="opt/chrome_for_testing" \
             SYSTEM_CHROMIUM_PLACEHOLDER="chromium" \
             USER_NATIVE_MANIFEST_DIR_FF="\$HOME/.mozilla/native-messaging-hosts" \
-            SYSTEM_NATIVE_MANIFEST_DIR_FF="\$FIREFOX_PREFIX/mozilla/native-messaging-hosts" \
+            SYSTEM_NATIVE_MANIFEST_DIR_FF="${BSD_PREFIX-\$FIREFOX_LIB_PREFIX}${BSD_PREFIX+/lib}/mozilla/native-messaging-hosts" \
             USER_NATIVE_MANIFEST_DIR_CHROME="\${XDG_CONFIG_HOME:-\$HOME/.config}/%CHROME%/NativeMessagingHosts" \
-            SYSTEM_NATIVE_MANIFEST_DIR_CHROME="/etc/%CHROME%/native-messaging-hosts" \
+            SYSTEM_NATIVE_MANIFEST_DIR_CHROME="$BSD_PREFIX/etc/%CHROME%/native-messaging-hosts" \
             USER_SERVER_BINARY_PATH="\${XDG_BIN_HOME:-\$HOME/.local/bin}/tab-reload-notify/notify-server" \
             SYSTEM_SERVER_BINARY_PATH="\$PREFIX/libexec/tab-reload-notify/notify-server" \
                 gen_installer_nix
