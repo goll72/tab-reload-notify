@@ -60,8 +60,12 @@ The following VM images have been installed to \`$OUT_DIR':
         [ NOTE: You will need to switch to the bootloader prompt before the ]
         [       3s timer runs out and run \`consdev com0' and then \`boot' if ]
         [       you want to use a serial interface.                         ]
+        [                                                                   ]
         [       In the "Select your distribution" menu, choose              ]
         [       "Full Installation".                                        ]
+        [                                                                   ]
+        [       If there is no internet connectivity once you boot into the ]
+        [       installed system, run \`dhcpcd'.                            ]
 
     macos-sequoia.conf        ->   $ARCH-apple-darwin
         [ NOTE: You may need to reboot and select the recovery disk multiple ]
@@ -269,11 +273,14 @@ echo "permit persist :wheel" > /usr/pkg/etc/doas.conf
 exit
 \`\`\`
 EOF
+                    printf "...> "
+                    read -r _
 
                     touch "$OUT_DIR/netbsd-10.1/first-time-setup.over"
                 fi
 
                 cat <<EOF
+
 Access VM by running \`telnet localhost 6660' in a separate terminal window.
 Log in as \`trn'.
 
