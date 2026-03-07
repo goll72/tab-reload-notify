@@ -34,5 +34,6 @@
         "preferred_environment": ["service_worker"]
     },
 
-    "permissions": ["nativeMessaging", "tabs", "storage"]
+    "permissions": ["nativeMessaging", "tabs", "storage"],
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwjOqGcHKzHzkrjlhlhQu3Hgfd9n0BaEAhzhJojjGJJ6eJegGGbzVj6ReCWRNYnOL9O0W4JKNLBWKdOVTivYpPEdUaWHHGRk451Ukaa6D+OynHScIPgJF0Dg62A7U1Reac0AHq3aU2i6ZzsbB4HbmF+0uPsTnjZ2UVLHpI9OdkFv8UfznCh1Svxgo4AIm4GVQs8IbQm6PD53jwwTJpKnO/28vb7nwqF1vae3xc3fLaHEfBWJr99GfoXXzOce7biq5bJWv6/2Bw2CS33ehXBV2Fg+Q5pJXNm2c+31Y8lTAijs4bV8+/w03JxpxeX9FO+GYEYLaCHNHnl+BacboEVneXQIDAQAB"
 }
