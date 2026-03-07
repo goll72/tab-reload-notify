@@ -45,7 +45,7 @@ session with the extension enabled for debugging.
 The extension can be installed from [addons.mozilla.org](https://addons.mozilla.org)
 or [Chrome Web Store](https://chromewebstore.google.com/). However, a native
 component is needed for the extension to work. Install scripts can be found
-in the [Release page](https://github.com/goll72/tab-reload-notify/releases/latest).
+in the [releases page](https://github.com/goll72/tab-reload-notify/releases/latest).
 
 > [!NOTE]
 >
@@ -60,13 +60,13 @@ in the [Release page](https://github.com/goll72/tab-reload-notify/releases/lates
 First, you will need to install all the dependencies outlined in
 `scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`.
 
-### Install scripts
+### Install Scripts
 
-`./scripts/gen-installer.sh` will generate a install script for the native component
-of the extension, for each supported target, using POSIX sh on *nix targets and
-Powershell 5.1 on Windows targets.
+`./scripts/gen-installer.sh` will generate a install script for the
+native component of the extension, for each supported target, using
+POSIX sh on *nix targets andPowershell 5.1 on Windows targets.
 
-### Virtual machines
+### Virtual Machines
 
 You may run `./scripts/run-vm-tests.sh --download` to download VM images
 and follow the instructions to set up the virtual machines for testing
