@@ -42,6 +42,11 @@ session with the extension enabled for debugging.
 
 ## Installing
 
+The extension can be installed from [addons.mozilla.org](https://addons.mozilla.org)
+or [Chrome Web Store](https://chromewebstore.google.com/). However, a native
+component is needed for the extension to work. Install scripts can be found
+in the [Release page](https://github.com/goll72/tab-reload-notify/releases/latest).
+
 > [!NOTE]
 >
 > On Windows, you may need to install the Microsoft Visual C++

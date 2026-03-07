@@ -16,6 +16,11 @@ lint:
 run:
 	npx web-ext run -s src $(ARGS)
 
+release:
+	@[ -n "`git tag --points-at HEAD`" ] || { echo "Cannot make release from non-tagged commit" >&2; exit 1; }
+	./scripts/gen-installer.sh
+	gh release create `git tag --points-at HEAD` scripts/output/installers/install-*
+
 node_modules: package.json
 	npm install
 	touch -m $@
@@ -36,4 +41,4 @@ $(EXTENSION_DIR): $(EXTENSION_ZIP)
 	unzip -o -d $@ $?
 	touch -m $@
 
-.PHONY: build lint run install
+.PHONY: build lint run release
