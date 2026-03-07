@@ -1,6 +1,14 @@
 import "./browser-polyfill.js";
 
-import { getRegexFlags, parseRegexList, DEFAULT_OPTIONS } from "./common.js";
+import {
+    getRegexFlags,
+    parseRegexList,
+    isFirefox,
+    isChrome,
+    isWindows,
+    DEFAULT_OPTIONS,
+} from "./common.js";
+
 import type { NotifyServerPort, Options } from "./types";
 
 // Previous file opened on any given tab
@@ -15,29 +23,83 @@ const notifyServer = browser.runtime.connectNative(
 let options: Options = DEFAULT_OPTIONS;
 let regex: RegExp | undefined;
 
-// TODO: unregister watches when tabs are closed
-// TODO: register watches for tabs that were already open before the extension was enabled
-browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
-    if (!changeInfo.url) {
+const removeFileAssociation = (tabId: number, file: string) => {
+    const tabs = openTabs.get(file);
+    const tabIndex = tabs?.indexOf(tabId);
+
+    if (tabIndex === undefined || tabIndex === -1) {
+        throw new Error();
+    }
+
+    if (tabIndex === 0) {
+        openTabs.delete(file);
+
+        console.log(`Requesting to stop watching \`${file}'...`);
+
+        notifyServer.postMessage({
+            command: "remove",
+            file,
+        });
+    } else {
+        tabs?.splice(tabIndex, 1);
+    }
+};
+
+const getFileFromUrl = (url: string): string | undefined => {
+    let result: string;
+
+    if (isFirefox()) {
+        // NOTE: Firefox supports jar:file:// URLs as well as
+        // regular file:// URLs, allowing for zip file navigation
+        const FILE_REGEX = /file:\/\/\/(.*)|jar:file:\/\/\/([^!]+)!\/.+/;
+        const matches = url.match(FILE_REGEX);
+
+        if (!matches) {
+            return undefined;
+        }
+
+        // NOTE: we have to decode the URI after it passes through
+        // the regex to handle cases such as a percent-encoded '!'
+        result = decodeURI(matches[1]);
+    } else if (isChrome()) {
+        const FILE_URI_PREFIX = "file:///";
+
+        if (url.startsWith(FILE_URI_PREFIX)) {
+            result = decodeURI(url.substring(FILE_URI_PREFIX.length));
+        } else {
+            return undefined;
+        }
+    } else {
+        throw new Error("Unsupported browser");
+    }
+
+    // TODO: handle UNC paths
+    if (!isWindows()) {
+        result = `/${result}`;
+    }
+
+    result = result.replaceAll(/\/+/g, "/").replace(/\/$/, "");
+
+    if (isWindows()) {
+        result = result.replaceAll(/\//g, "\\");
+    }
+
+    return result;
+};
+
+const updateTab = (id: number, tab: browser.tabs.Tab) => {
+    const previous = previousOpenFile.get(id);
+
+    if (!tab.url) {
         return;
     }
 
-    // XXX: handle `jar:file://!` URLs (they can have trailing slashes [before the !] too)
-    const fileUriPrefix = "file:///";
-    const previous = previousOpenFile.get(id);
+    const file = getFileFromUrl(tab.url);
 
-    let file: string | undefined;
-
-    // To make the code simpler, we will add the relevant entries in the maps
-    // even if the commands sent to the inotify server end up erroring out,
-    // rolling back the changes when we receive an error response.
-    if (tab.url?.startsWith(fileUriPrefix)) {
-        // NOTE: the browser already canonicalizes `..` and `.` but we still have
-        // to canonicalize repeated and trailing slashes
-        file = `/${tab.url.substring(fileUriPrefix.length)}`
-            .replaceAll(/\/+/g, "/")
-            .replace(/\/$/, "");
-
+    if (file) {
+        // To make the code simpler, we will add the relevant entries in the maps
+        // even if the commands sent to the inotify server end up erroring out,
+        // rolling back the changes when we receive an error response.
         if (!openTabs.has(file)) {
             if (options.regexList.type === "block" && regex?.test(file)) {
                 return;
@@ -65,34 +127,42 @@ browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
     }
 
     if (previous) {
-        // List of all tabs that are currently open on the
-        // same file that was previously opened on this tab
-        //
-        // At this point, the list should also include this tab, so we have to remove it
-        const tabs = openTabs.get(previous);
-        const tabIndex = tabs?.indexOf(id);
-
-        if (tabIndex === undefined || tabIndex === -1) {
-            throw new Error();
-        }
-
         if (previous === file) {
             return;
         }
 
-        if (tabIndex === 0) {
-            openTabs.delete(previous);
+        removeFileAssociation(id, previous);
+    }
+};
 
-            console.log(`Requesting to stop watching \`${previous}'...`);
+(async () => {
+    // All active tabs when the extension is loaded
+    const allTabs = await browser.tabs.query({ active: true });
 
-            notifyServer.postMessage({
-                command: "remove",
-                file: previous,
-            });
-        } else {
-            tabs?.splice(tabIndex, 1);
+    for (const tab of allTabs) {
+        if (tab.id && tab.id !== browser.tabs.TAB_ID_NONE) {
+            updateTab(tab.id, tab);
         }
     }
+})();
+
+browser.tabs.onUpdated.addListener((id, changeInfo, tab) => {
+    if (!changeInfo.url) {
+        return;
+    }
+
+    updateTab(id, tab);
+});
+
+browser.tabs.onRemoved.addListener((id, _) => {
+    const file = previousOpenFile.get(id);
+
+    if (!file) {
+        return;
+    }
+
+    previousOpenFile.delete(id);
+    removeFileAssociation(id, file);
 });
 
 notifyServer.onMessage.addListener(async event => {
@@ -134,7 +204,7 @@ notifyServer.onMessage.addListener(async event => {
     }
 });
 
-async function loadOptions() {
+const loadOptions = async () => {
     console.log("Loading options...");
 
     const prevReloadRemoved = options.reloadRemoved;
@@ -157,7 +227,7 @@ async function loadOptions() {
     } else {
         regex = RegExp(regexList.join("|"), await getRegexFlags());
     }
-}
+};
 
 browser.storage.onChanged.addListener(loadOptions);
 

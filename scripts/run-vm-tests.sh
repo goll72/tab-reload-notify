@@ -24,9 +24,11 @@ pnrelpath() {
     while [ "$1" ] && [ "$2" = "${2#"$1"}" ]    ## reduce $1 to shared path
     do  set -- "${1%/?*/}/"  "$2" "../$3"       ## source/.. target ../relpath
     done
-    REPLY="${3}${2#"$1"}"                       ## build result
+    X="${3}${2#"$1"}"                           ## build result
     # unless root chomp trailing '/', replace '' with '.'
-    [ "${REPLY#/}" ] && REPLY="${REPLY%/}" || REPLY="${REPLY:-.}"
+    [ "${X#/}" ] && X="${X%/}" || X="${X:-.}"
+
+    echo "$X"
 }
 
 case "$ARCH" in
@@ -392,13 +394,16 @@ Access VM by running \`ssh -F $(pnrelpath "$(pwd)" "$AUX_DIR")/ssh.conf windows-
 Run:
 
 \`\`\`
-\$share = \\\\10.0.2.4\\qemu
-\$trn = \$env:TMP\\trn
+\$share = "\\\\10.0.2.4\\qemu"
+\$trn = "\$env:TMP\\trn"
 
+Set-ExecutionPolicy Bypass
+powershell \$share\\install-$ARCH-pc-windows-msvc.ps1
+
+rm -r -fo \$trn
 mkdir \$trn
 
-Invoke-Command \$share\\install-$ARCH-pc-windows-msvc.ps1
-Copy-Item -Recurse -Path \$share\\tests \$share\\extension* -Destination \$trn
+Copy-Item -Recurse -Path \$share\\tests,\$share\\extension* -Destination \$trn -Force
 
 cd \$trn\\tests
 

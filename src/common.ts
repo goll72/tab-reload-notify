@@ -35,3 +35,7 @@ export function isFirefox() {
 export function isChrome() {
     return navigator.userAgent.includes("Chrome");
 }
+
+export function isWindows() {
+    return navigator.userAgent.includes("Windows NT");
+}

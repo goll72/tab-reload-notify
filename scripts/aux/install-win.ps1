@@ -45,8 +45,8 @@ function Expand-ServerBinary {
 
     $decoded = [System.Convert]::FromBase64String($b64)
 
-    Set-Content $env:TMP\notify-server.zip -Value $decoded -AsByteStream
-    Expand-Archive -Path $env:TMP\notify-server.zip -DestinationPath $env:TMP\notify-server
+    Set-Content $env:TMP\notify-server.zip -Value $decoded -Encoding Byte
+    Expand-Archive -Path $env:TMP\notify-server.zip -DestinationPath $env:TMP\notify-server -Force
 }
 
 $nativeManifest = @'
@@ -60,7 +60,7 @@ $registryKeys = @{
 
 $allowedExtensions = @{
     'firefox' = '"allowed_extensions": ["%FF_EXT_ID%"]'
-    'chrome' = '"allowed_origins": ["%CHROME_EXT_ID"]'
+    'chrome' = '"allowed_origins": ["%CHROME_EXT_ID%"]'
 }
 
 # Install the server binary and native manifest
@@ -75,9 +75,9 @@ if ($system) {
 }
 
 if ($uninstall) {
-    Remove-Item -Path $nativeInstallPath\notify-server.exe
+    Remove-Item -Path $nativeInstallPath\notify-server.exe -Force
 } else {
-    New-Item -Path $nativeInstallPath -Type Directory
+    New-Item -Path $nativeInstallPath -Type Directory -Force
     Copy-Item -Path $env:TMP\notify-server\notify-server.exe -Destination $nativeInstallPath\notify-server.exe
 }
 
@@ -90,10 +90,16 @@ foreach ($browser in $browsers) {
     }
 
     if ($uninstall) {
-        Remove-Item -Path $regPath
-        Remove-Item -Path $nativeInstallPath\native-manifest.$browser.json
+        Remove-Item -Path $regPath -Force
+        Remove-Item -Path $nativeInstallPath\native-manifest.$browser.json -Force
     } else {
-        New-Item -Path $regPath -Value $nativeInstallPath\native-manifest.$browser.json
-        $nativeManifest -replace '%ALLOWED%', $allowedExtensions[$browser] | Out-File -FilePath $nativeInstallPath\native-manifest.$browser.json
+        if (!(Test-Path -Path $regPath)) {
+            New-Item -Path $regPath -Value $nativeInstallPath\native-manifest.$browser.json -Force
+        }
+
+        $nativeManifest -replace '%ALLOWED%', $allowedExtensions[$browser] | Out-File -Encoding utf8 -FilePath $nativeInstallPath\native-manifest.$browser.json
     }
 }
+
+Write-Output ''
+Write-Output 'You may need to log out or reboot for registry changes to take effect.'

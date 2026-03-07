@@ -41,6 +41,16 @@ make run
 and optionally specify an `ARGS` variable to run a Firefox/Chromium
 session with the extension enabled for debugging.
 
+## Installing
+
+> [!NOTE]
+>
+> On Windows, you may need to install the Microsoft Visual C++
+> Redistributable v14 before being able to use the extension.
+>
+> - [Download page (x64)](https://aka.ms/vc14/vc_redist.x64.exe)
+> - [Download page (ARM64)](https://aka.ms/vc14/vc_redist.arm64.exe)
+
 ## Development and Testing
 
 Install all the dependencies outlined in `scripts/gen-installer.sh` and
@@ -57,8 +67,10 @@ the extension.
 >
 > ```sh
 > cd tests
+>
 > npm install
 > npx puppeteer browsers install firefox
+>
 > BROWSER=firefox EXT_PATH=../web-ext-artifacts node main.ts
 > BROWSER=chrome EXT_PATH=../web-ext-artifacts node main.ts
 > ```
