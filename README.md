@@ -53,31 +53,7 @@ session with the extension enabled for debugging.
 ## Development and Testing
 
 First, you will need to install all the dependencies outlined in
-`scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`, as well
-as `openssl` and `sha256sum`.
-
-### Signing
-
-In order to test an extension on Chrome and have its ID stay the same,
-it has to be signed. Run the following commands to generate an RSA
-keypair and replace the public key set in the extension's manifest
-with your own:
-
-```sh
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out key.pem
-
-PUBKEY=$(openssl rsa -in key.pem -pubout | tail -n +2 | head -n -1 | tr -d '\n')
-EXT_ID=$(openssl rsa -in key.pem -pubout -outform DER | shasum -a 256 | head -c32 | tr 0-9a-f a-p)
-
-sed -i "s/CHROME_EXT_ID=.*/CHROME_EXT_ID=$EXT_ID/" .env
-sed -i "s#\"key\": \".*\"#\"key\": \"$PUBKEY\"#" src/manifest.json
-```
-
-Then, you can use Chromium or Chrome to sign the extension:
-
-```sh
-google-chrome --pack-extension=web-ext-artifacts/extension --pack-extension-key=key.pem
-```
+`scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`.
 
 ### Install scripts
 
@@ -103,4 +79,22 @@ the extension.
 >
 > BROWSER=firefox EXT_PATH=../web-ext-artifacts node main.ts
 > BROWSER=chrome EXT_PATH=../web-ext-artifacts node main.ts
+> ```
+
+### Signing
+
+If you are in possession of a signing key, you may sign the extension by running
+
+```sh
+chromium --pack-extension=web-ext-artifacts/extension --pack-extension-key=key.pem
+```
+
+> [!TIP]
+>
+> By having the extension's public key (which can be found in the manifest's `key`
+> field), it is possible to derive the Chrome extension ID:
+>
+> ```sh
+> jq --raw-output '"-----BEGIN PUBLIC KEY-----\n\(.key)\n-----END PUBLIC KEY-----"' src/manifest.json | \
+>     openssl pkey -in /dev/stdin -pubin -outform DER | shasum -a 256 | head -c32 | tr 0-9a-f a-p
 > ```
