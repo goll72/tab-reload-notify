@@ -214,7 +214,6 @@ EOF
             gen_installer_win
         ;;
         *-apple-*)
-            # XXX: I have no idea if this works (probably not)
             BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server"
 
             USER_CHROME_PLACEHOLDER="Google/Chrome" \
