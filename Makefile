@@ -11,10 +11,10 @@ ICONS = src/icon16.png src/icon32.png src/icon48.png src/icon64.png src/icon128.
 build: $(EXTENSION_ZIP) $(EXTENSION_DIR)
 
 lint:
-	npx web-ext lint -s src -i '*.ts' -i '*.svg'
+	npx web-ext lint
 
 run:
-	npx web-ext run -s src $(ARGS)
+	npx web-ext run $(ARGS)
 
 release:
 	@[ -n "`git tag --points-at HEAD`" ] || { echo "Cannot make release from non-tagged commit" >&2; exit 1; }
@@ -35,7 +35,7 @@ src/icon%.png: src/icon.svg
 	rsvg-convert --width=$* --height=$* --keep-aspect-ratio $? > $@ 
 
 $(EXTENSION_ZIP): $(JS) src/browser-polyfill.js src/options.html $(ICONS) src/manifest.json
-	npx web-ext build --overwrite-dest -s src -i '*.ts' -i '*.svg' -n `basename $(EXTENSION_ZIP)`
+	npx web-ext build -n `basename $(EXTENSION_ZIP)`
 
 $(EXTENSION_DIR): $(EXTENSION_ZIP)
 	unzip -o -d $@ $?

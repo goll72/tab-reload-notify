@@ -2,6 +2,7 @@
 name = "notify-server"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 notify = "9.0.0-rc.2"
@@ -15,3 +16,7 @@ opt-level = "z"
 panic = "abort"
 strip = "symbols"
 codegen-units = 1
+
+[build-dependencies]
+embed-resource = "3.0.6"
+pathsearch = "0.2.0"

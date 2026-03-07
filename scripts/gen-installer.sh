@@ -4,7 +4,7 @@
 # To run this script, you will need to install the targets listed in
 # `common.sh` using `rustup`, as well as `zig`, `cargo-zigbuild`
 # (from https://github.com/goll72/cargo-zigbuild-netbsd), `cargo-xwin`,
-# a macOS Xcode SDK, `zip`, `gzip` and `base64`.
+# a macOS Xcode SDK, `zip`, `gzip`, `base64`, `magick` and `rsvg-convert`. 
 
 : "${MACOS_SDKROOT:=/opt/xcode/sdk}"
 
@@ -194,6 +194,25 @@ gen_installer() {
     TARGET=$1
 
     shift 2
+
+    case "$TARGET" in
+        *-windows-*)
+            ICON="$REPO_ROOT/native/notify-server/icon.ico"
+
+            if ! [ -f "$ICON" ]; then
+                files=()
+                tmp=$(mktemp -d)
+
+                for size in 16 32 48 256; do
+                    rsvg-convert -w $size -h $size -d 300 -a "$REPO_ROOT/src/icon.svg" > "$tmp/$size.png"
+                    files+=("$tmp/$size.png")
+                done
+
+                magick "${files[@]}" -colors 256 "$ICON"
+                rm -rf "$tmp"
+            fi
+        ;;
+    esac    
     
     cd "$REPO_ROOT/native/notify-server" > /dev/null
     cargo "$@" --release --target "$TARGET"
@@ -206,7 +225,6 @@ Built for: $TARGET
 EOF
 )
 
-     
     case "$TARGET" in
         *-windows-*)
             BINARY="$REPO_ROOT/native/notify-server/target/$TARGET/release/notify-server.exe"

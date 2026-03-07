@@ -13,5 +13,15 @@
         "web-ext": "^9.3.0",
         "webextension-polyfill": "^0.12.0",
         "@types/firefox-webext-browser": "^143.0.0"
+    },
+    "webExt": {
+        "sourceDir": "src",
+        "ignoreFiles": [
+            "*.ts",
+            "*.svg"
+        ],
+        "build": {
+            "overwriteDest": true
+        }
     }
 }
