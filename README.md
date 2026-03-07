@@ -10,7 +10,6 @@ when their content changes, by using file watch primitives. The Rust crate
  - *BSD: kqueue
  - Windows: ReadDirectoryChanges
 
-
 ## Building
 
 To build the extension, you will need `npm`, `make`, `rsvg-convert`, `unzip`
@@ -53,11 +52,42 @@ session with the extension enabled for debugging.
 
 ## Development and Testing
 
-Install all the dependencies outlined in `scripts/gen-installer.sh` and
-`scripts/run-vm-tests.sh`. Then, you may run `./scripts/gen-installer.sh`
-to generate install scripts for all supported targets.
+First, you will need to install all the dependencies outlined in
+`scripts/gen-installer.sh` and `scripts/run-vm-tests.sh`, as well
+as `openssl` and `sha256sum`.
 
-Then, run `./scripts/run-vm-tests.sh --download` to download VM images
+### Signing
+
+In order to test an extension on Chrome and have its ID stay the same,
+it has to be signed. Run the following commands to generate an RSA
+keypair and replace the public key set in the extension's manifest
+with your own:
+
+```sh
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out key.pem
+
+PUBKEY=$(openssl rsa -in key.pem -pubout | tail -n +2 | head -n -1 | tr -d '\n')
+EXT_ID=$(openssl rsa -in key.pem -pubout -outform DER | shasum -a 256 | head -c32 | tr 0-9a-f a-p)
+
+sed -i "s/CHROME_EXT_ID=.*/CHROME_EXT_ID=$EXT_ID/" .env
+sed -i "s#\"key\": \".*\"#\"key\": \"$PUBKEY\"#" src/manifest.json
+```
+
+Then, you can use Chromium or Chrome to sign the extension:
+
+```sh
+google-chrome --pack-extension=web-ext-artifacts/extension --pack-extension-key=key.pem
+```
+
+### Install scripts
+
+`./scripts/gen-installer.sh` will generate a install script for the native component
+of the extension, for each supported target, using POSIX sh on *nix targets and
+Powershell 5.1 on Windows targets.
+
+### Virtual machines
+
+You may run `./scripts/run-vm-tests.sh --download` to download VM images
 and follow the instructions to set up the virtual machines for testing
 the extension.
 
