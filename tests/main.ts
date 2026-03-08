@@ -97,19 +97,20 @@ const setOptions = async (options: Options) => {
     }, options);
 };
 
-// Wrapper for test functions that creates a new page, creates a file hierarchy following
+// Adapter to run test functions that creates a new page, creates a file hierarchy following
 // `hierarchy`, and then runs the function with the test logic that was passed in.
 //
 // This function also allows tests to deal with relative paths and have them be converted
 // to absolute paths automatically by using the `abs` function.
-const withPage = (
+const testWithPage = async (
+    description: string,
     hierarchy: FileHierarchy,
     inner: (
         page: Page,
         loadCount: () => number,
         abs: (path: string) => string,
     ) => Promise<void>,
-): (() => Promise<void>) => {
+) => {
     let dir: string;
     const owd = process.cwd();
 
@@ -129,33 +130,32 @@ const withPage = (
         return path.join(dir, name);
     };
 
-    return async () => {
-        try {
-            await fs.mkdir(dir);
-        } catch (error) {
-            if (error.code !== "EEXIST") throw error;
-        }
+    try {
+        await fs.mkdir(dir);
+    } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+    }
 
-        await makeHierarchy(dir, hierarchy);
+    await makeHierarchy(dir, hierarchy);
 
-        let loadCount = 0;
-        const page = await browser.newPage();
+    let loadCount = 0;
+    const page = await browser.newPage();
 
-        page.on("load", () => loadCount++);
+    page.on("load", () => loadCount++);
 
-        process.chdir(dir);
-        await inner(page, () => loadCount, abs);
-        process.chdir(owd);
+    process.chdir(dir);
+    await test(description, async () => inner(page, () => loadCount, abs));
+    process.chdir(owd);
 
-        await page.close();
+    await page.close();
 
-        await fs.rm(dir, { recursive: true, force: true });
-    };
+    await fs.rm(dir, { recursive: true, force: true });
 };
 
-await test(
+await testWithPage(
     " non-existent file gets loaded ",
-    withPage(file("non-existent"), async (page, loadCount, abs) => {
+    file("non-existent"),
+    async (page, loadCount, abs) => {
         await fs.rm("non-existent").catch(() => Promise.resolve());
 
         await sleep(400);
@@ -171,12 +171,13 @@ await test(
 
         await sleep(400);
         assert.strictEqual(loadCount(), prevCount + 1);
-    }),
+    },
 );
 
-await test(
+await testWithPage(
     " pre-existing file gets reloaded ",
-    withPage(file("ok"), async (page, loadCount, abs) => {
+    file("ok"),
+    async (page, loadCount, abs) => {
         await fs.writeFile("ok", "A");
 
         await sleep(400);
@@ -189,12 +190,13 @@ await test(
 
         await sleep(400);
         assert.strictEqual(loadCount(), prevCount + 1);
-    }),
+    },
 );
 
-await test(
+await testWithPage(
     " directory gets reloaded on internal child rename ",
-    withPage(dir("a", [file("b"), dir("c")]), async (page, loadCount, abs) => {
+    dir("a", [file("b"), dir("c")]),
+    async (page, loadCount, abs) => {
         await page.goto(`file://${abs("a")}`);
 
         await sleep(400);
@@ -204,30 +206,29 @@ await test(
 
         await sleep(400);
         assert.strictEqual(loadCount(), prevCount + 1);
-    }),
+    },
 );
 
-await test(
+await testWithPage(
     " directory gets reloaded on external child rename ",
-    withPage(
-        dir("a", [dir("b", [file("c")])]),
-        async (page, loadCount, abs) => {
-            await page.goto(`file://${abs("a/b")}`);
+    dir("a", [dir("b", [file("c")])]),
+    async (page, loadCount, abs) => {
+        await page.goto(`file://${abs("a/b")}`);
 
-            await sleep(400);
-            const prevCount = loadCount();
+        await sleep(400);
+        const prevCount = loadCount();
 
-            await fs.rename("a/b/c", "a/d");
+        await fs.rename("a/b/c", "a/d");
 
-            await sleep(400);
-            assert.strictEqual(loadCount(), prevCount + 1);
-        },
-    ),
+        await sleep(400);
+        assert.strictEqual(loadCount(), prevCount + 1);
+    },
 );
 
-await test(
+await testWithPage(
     " removed file does NOT get reloaded (when config option is NOT set) ",
-    withPage(dir("a", [file("b")]), async (page, loadCount, abs) => {
+    dir("a", [file("b")]),
+    async (page, loadCount, abs) => {
         await page.goto(`file://${abs("a/b")}`);
 
         await sleep(400);
@@ -237,12 +238,13 @@ await test(
 
         await sleep(400);
         assert.strictEqual(loadCount(), prevCount);
-    }),
+    },
 );
 
-await test(
+await testWithPage(
     " removed file gets reloaded (when config option is set) ",
-    withPage(dir("a", [file("b")]), async (page, loadCount, abs) => {
+    dir("a", [file("b")]),
+    async (page, loadCount, abs) => {
         await setOptions({ ...DEFAULT_OPTIONS, reloadRemoved: true });
 
         await sleep(400);
@@ -257,33 +259,31 @@ await test(
         assert.strictEqual(loadCount(), prevCount + 1);
 
         await setOptions(DEFAULT_OPTIONS);
-    }),
+    },
 );
 
-await test(
+await testWithPage(
     " file on blocklist does NOT get reloaded ",
-    withPage(
-        dir("foo", [file("bar"), file("baz"), file("quux")]),
-        async (page, loadCount, abs) => {
-            await setOptions({
-                ...DEFAULT_OPTIONS,
-                regexList: { type: "block", content: ".*/foo/bar\n" },
-            });
+    dir("foo", [file("bar"), file("baz"), file("quux")]),
+    async (page, loadCount, abs) => {
+        await setOptions({
+            ...DEFAULT_OPTIONS,
+            regexList: { type: "block", content: ".*/foo/bar\n" },
+        });
 
-            await sleep(400);
-            await page.goto(`file://${abs("foo/bar")}`);
+        await sleep(400);
+        await page.goto(`file://${abs("foo/bar")}`);
 
-            await sleep(400);
-            const prevCount = loadCount();
+        await sleep(400);
+        const prevCount = loadCount();
 
-            await fs.appendFile("foo/bar", "A");
+        await fs.appendFile("foo/bar", "A");
 
-            await sleep(400);
-            assert.strictEqual(loadCount(), prevCount);
+        await sleep(400);
+        assert.strictEqual(loadCount(), prevCount);
 
-            await setOptions(DEFAULT_OPTIONS);
-        },
-    ),
+        await setOptions(DEFAULT_OPTIONS);
+    },
 );
 
 await extHandle.close();
