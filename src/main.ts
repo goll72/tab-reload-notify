@@ -220,7 +220,7 @@ const loadOptions = async () => {
         });
     }
 
-    const regexList = parseRegexList(options.regexList.content);
+    const regexList = parseRegexList(options.regexList.content).map(x => x.text);
 
     if (regexList.length === 0) {
         regex = undefined;
