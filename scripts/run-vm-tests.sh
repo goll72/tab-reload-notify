@@ -410,8 +410,8 @@ cd \$trn\\tests
 npm install
 npx puppeteer browsers install firefox
 
-$env:BROWSER = 'firefox'; node main.ts
-$env:BROWSER = 'chrome'; node main.ts
+\$env:BROWSER = 'firefox'; node main.ts
+\$env:BROWSER = 'chrome'; node main.ts
 \`\`\`
 EOF
             ;;
