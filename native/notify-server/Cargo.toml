@@ -19,4 +19,3 @@ codegen-units = 1
 
 [build-dependencies]
 embed-resource = "3.0.6"
-pathsearch = "0.2.0"
