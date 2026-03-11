@@ -14,9 +14,9 @@ use std::path::{Path, PathBuf};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
 
 use std::error::Error;
-use std::thread;
 use thiserror::Error;
 
 use notify::{Config, EventKindMask, RecommendedWatcher, RecursiveMode, Watcher};
@@ -28,9 +28,16 @@ mod windows;
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "command")]
 enum NotifyMessage {
-    Add { file: PathBuf },
-    Remove { file: PathBuf },
-    Reconfigure { reload_removed: Option<bool> },
+    Add {
+        file: PathBuf,
+    },
+    Remove {
+        file: PathBuf,
+    },
+    #[serde(rename_all = "camelCase")]
+    Reconfigure {
+        reload_removed: Option<bool>,
+    },
 }
 
 #[derive(Serialize)]
@@ -96,9 +103,9 @@ enum WatchRequest {
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "windows")]
     {
-        windows::set_fd_mode(0, windows::mode::_O_BINARY).unwrap();
-        windows::set_fd_mode(1, windows::mode::_O_BINARY).unwrap();
-        windows::set_fd_mode(2, windows::mode::_O_BINARY).unwrap();
+        windows::set_fd_mode(0, windows::mode::_O_BINARY)?;
+        windows::set_fd_mode(1, windows::mode::_O_BINARY)?;
+        windows::set_fd_mode(2, windows::mode::_O_BINARY)?;
     }
 
     type DirectoryMap<'a> = Arc<Mutex<HashMap<PathBuf, BTreeSet<Cow<'a, Path>>>>>;
@@ -199,7 +206,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                         if let Some(existing) = map.get_mut(&path) {
                                             existing.extend(set);
                                         } else {
-                                            tx.send(WatchRequest::Watch(path.clone()));
+                                            let _ = tx.send(WatchRequest::Watch(path.clone()));
                                             map.insert(path, set);
                                         }
                                     }
@@ -207,7 +214,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             }
                         }
                         Event {
-                            kind: EventKind::Remove(kind),
+                            kind: EventKind::Remove(..),
                             paths,
                             ..
                         } => {
@@ -258,7 +265,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 } else {
                                     path.pop();
 
-                                    tx.send(WatchRequest::Watch(path.clone()));
+                                    let _ = tx.send(WatchRequest::Watch(path.clone()));
                                     map.insert(path, set);
                                 }
                             }
@@ -395,13 +402,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     thread::spawn(move || {
         while let Ok(request) = rx.recv() {
-            match request {
+            let (path, result) = match request {
                 WatchRequest::Watch(path) => {
-                    watcher.watch(&path, RecursiveMode::NonRecursive);
+                    let x = watcher.watch(&path, RecursiveMode::NonRecursive);
+                    (path, x)
                 }
                 WatchRequest::Unwatch(path) => {
-                    watcher.watch(&path, RecursiveMode::NonRecursive);
+                    let x = watcher.watch(&path, RecursiveMode::NonRecursive);
+                    (path, x)
                 }
+            };
+
+            if result.is_err() {
+                let _ = ser_json_len_prefixed_stdout(&NotifyEvent::Error { file: &path });
             }
         }
     });
@@ -418,7 +431,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 // Path exists and is a directory
                 if file.is_dir() {
-                    tx.send(WatchRequest::Watch(file.clone()));
+                    tx.send(WatchRequest::Watch(file.clone()))?;
 
                     dir_watched_children
                         .lock()
@@ -441,7 +454,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     let rest = file.strip_prefix(base)?.to_owned();
 
-                    tx.send(WatchRequest::Watch(base.into()));
+                    tx.send(WatchRequest::Watch(base.into()))?;
 
                     dir_watched_children
                         .lock()
@@ -461,7 +474,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     if children.is_empty() {
                         map.remove(&file);
-                        tx.send(WatchRequest::Unwatch(file));
+                        tx.send(WatchRequest::Unwatch(file))?;
                     }
                 } else if let Some(parent) = file.parent() {
                     for ancestor in parent.ancestors() {
@@ -476,7 +489,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         children.remove(suffix);
 
                         if children.is_empty() {
-                            tx.send(WatchRequest::Unwatch(ancestor.into()));
+                            tx.send(WatchRequest::Unwatch(ancestor.into()))?;
                             map.remove(ancestor);
 
                             break;
@@ -485,7 +498,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             Some(NotifyMessage::Reconfigure { reload_removed }) => {
+                eprintln!("Received reconfigure message");
+
                 if let Some(value) = reload_removed {
+                    eprintln!("[conf] reloadRemoved was set to {value}");
                     RELOAD_REMOVED.swap(value, Ordering::Relaxed);
                 }
             }
