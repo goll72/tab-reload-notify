@@ -209,18 +209,24 @@ const loadOptions = async () => {
 
     const prevReloadRemoved = options.reloadRemoved;
 
-    browser.storage.local.get(DEFAULT_OPTIONS).then(x => {
+    await browser.storage.local.get(DEFAULT_OPTIONS).then(x => {
         options = x as Options;
     });
 
     if (prevReloadRemoved !== options.reloadRemoved) {
+        console.log(
+            "Sending reconfigure(reloadRemoved) event to the server...",
+        );
+
         notifyServer.postMessage({
             command: "reconfigure",
             reloadRemoved: options.reloadRemoved,
         });
     }
 
-    const regexList = parseRegexList(options.regexList.content).map(x => x.text);
+    const regexList = parseRegexList(options.regexList.content).map(
+        x => x.text,
+    );
 
     if (regexList.length === 0) {
         regex = undefined;
