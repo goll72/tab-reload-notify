@@ -1,8 +1,8 @@
 {
-    "description": "Automatically reload tabs with the file URI scheme using file watch primitives",
+    "description": "Automatically reload tabs with the file URI scheme by using file watch primitives",
     "manifest_version": 3,
     "name": "tab-reload-notify",
-    "version": "0.1",
+    "version": "0.2",
 
     "browser_specific_settings": {
         "gecko": {
