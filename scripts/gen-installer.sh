@@ -51,9 +51,9 @@ install_or_uninstall() {
     DEST=\$3
     
     if [ -n "\$UNINSTALL" ]; then
-        rm -f "\$DEST"
+        rm -f "\$DESTDIR\$DEST"
     else
-        mkdir -p "\$(dirname "\$DEST")"
+        mkdir -p "\$DESTDIR\$(dirname "\$DEST")"
         install -m "\$MODE" "\$SRC" "\$DESTDIR\$DEST"
     fi
 }
